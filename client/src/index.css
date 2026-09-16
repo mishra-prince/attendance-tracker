@@ -1,0 +1,236 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-void: #0a0908;
+  --color-carbon: #1c1b1e;
+  --color-signal-red: #ff453a;
+  --color-ember: #b31217;
+  --color-text-primary: #f5f1ee;
+  --color-text-secondary: #9c9793;
+  --color-text-muted: #6b6663;
+
+  --glass-heavy-fill: rgba(28, 27, 30, 0.62);
+  --glass-medium-fill: rgba(28, 27, 30, 0.45);
+  --glass-border: rgba(245, 241, 238, 0.08);
+  --glass-highlight: rgba(245, 241, 238, 0.14);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-void);
+  color: var(--color-text-primary);
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  /* viewport-fixed red bottom glow — light through frosted glass */
+  background-image: radial-gradient(
+    120% 55% at 50% 108%,
+    rgba(179, 18, 23, 0.32) 0%,
+    rgba(179, 18, 23, 0.12) 38%,
+    transparent 70%
+  );
+  background-attachment: fixed;
+}
+
+/* ---------- Glass tiers ---------- */
+.glass-heavy {
+  background: var(--glass-heavy-fill);
+  backdrop-filter: blur(28px) saturate(1.4);
+  -webkit-backdrop-filter: blur(28px) saturate(1.4);
+  border: 1px solid var(--glass-border);
+  /* hairline top highlight — material thickness, not a flat border */
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+}
+
+.glass-medium {
+  background: var(--glass-medium-fill);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  border: 1px solid var(--glass-border);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+}
+
+/* ---------- Display numeral (the one number that matters) ---------- */
+.display-numeral {
+  font-weight: 100;
+  font-size: clamp(64px, 14vw, 96px);
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-feature-settings: 'tnum';
+}
+
+/* ---------- Tinted-not-solid status badges ---------- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid;
+}
+.badge svg {
+  width: 13px;
+  height: 13px;
+}
+.badge-present {
+  color: #6ee7a0;
+  background: rgba(110, 231, 160, 0.1);
+  border-color: rgba(110, 231, 160, 0.25);
+}
+.badge-absent {
+  color: var(--color-signal-red);
+  background: rgba(255, 69, 58, 0.1);
+  border-color: rgba(255, 69, 58, 0.3);
+}
+.badge-late {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.1);
+  border-color: rgba(251, 191, 36, 0.25);
+}
+.badge-neutral {
+  color: var(--color-text-secondary);
+  background: rgba(156, 151, 147, 0.1);
+  border-color: rgba(156, 151, 147, 0.25);
+}
+.badge-medical {
+  color: #7dd3fc;
+  background: rgba(125, 211, 252, 0.1);
+  border-color: rgba(125, 211, 252, 0.25);
+}
+
+/* ---------- Focus ring (a11y) ---------- */
+:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-signal-red);
+  border-radius: 8px;
+}
+
+/* ---------- Buttons ---------- */
+.btn-primary {
+  background: linear-gradient(180deg, var(--color-signal-red), var(--color-ember));
+  color: #fff;
+  font-weight: 600;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 20px;
+  cursor: pointer;
+  transition: filter 150ms ease;
+}
+.btn-primary:hover {
+  filter: brightness(1.1);
+}
+.btn-primary:active {
+  filter: brightness(0.9);
+}
+.btn-ghost {
+  background: var(--glass-medium-fill);
+  backdrop-filter: blur(16px);
+  color: var(--color-text-primary);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 12px 20px;
+  cursor: pointer;
+}
+
+/* ---------- Inputs ---------- */
+.input {
+  width: 100%;
+  background: rgba(28, 27, 30, 0.45);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  color: var(--color-text-primary);
+  font-size: 15px;
+}
+.input::placeholder {
+  color: var(--color-text-muted);
+}
+
+/* ---------- Light sweep (150ms, disabled under reduced motion) ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  .sweep::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg, transparent 40%, rgba(245, 241, 238, 0.06) 50%, transparent 60%);
+    transform: translateX(-100%);
+    transition: transform 150ms ease;
+    pointer-events: none;
+  }
+  .sweep:hover::after {
+    transform: translateX(100%);
+  }
+}
+
+/* ---------- Bottom nav (student) ---------- */
+.bottom-nav {
+  position: fixed;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  padding: 8px;
+  display: flex;
+  gap: 4px;
+  z-index: 50;
+}
+.bottom-nav a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  font-size: 11px;
+  min-width: 44px;
+  min-height: 44px;
+  justify-content: center;
+}
+.bottom-nav a.active {
+  color: var(--color-signal-red);
+  background: rgba(255, 69, 58, 0.12);
+}
+
+/* ---------- Sidebar (teacher/HOD) ---------- */
+.sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  font-size: 14px;
+  min-height: 44px;
+}
+.sidebar-link:hover {
+  color: var(--color-text-primary);
+  background: rgba(245, 241, 238, 0.04);
+}
+.sidebar-link.active {
+  color: var(--color-signal-red);
+  background: rgba(255, 69, 58, 0.1);
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(156, 151, 147, 0.3);
+  border-radius: 3px;
+}

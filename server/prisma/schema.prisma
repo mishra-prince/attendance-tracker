@@ -1,0 +1,453 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  HOD
+  TEACHER
+  STUDENT
+}
+
+enum SubjectType {
+  theory
+  lab
+  tutorial
+}
+
+enum DayOfWeek {
+  Mon
+  Tue
+  Wed
+  Thu
+  Fri
+  Sat
+}
+
+enum SessionType {
+  lecture
+  lab
+  tutorial
+}
+
+enum ClassSessionStatus {
+  scheduled
+  open
+  submitted
+  locked
+  cancelled
+}
+
+enum AttendanceStatus {
+  present
+  absent
+  late
+  excused
+  on_duty
+  medical
+}
+
+enum AttendanceMethod {
+  manual
+  QR
+}
+
+enum EnrollmentStatus {
+  active
+  dropped
+  completed
+}
+
+enum ApprovalStatus {
+  pending
+  approved
+  rejected
+}
+
+enum NotificationType {
+  low_attendance
+  leave_status
+  correction_status
+  announcement
+}
+
+enum NotificationChannel {
+  in_app
+  email
+  sms
+}
+
+enum NotificationStatus {
+  pending
+  sent
+  failed
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  APPROVE
+  REJECT
+  LOCK
+}
+
+model User {
+  user_id       String    @id @default(uuid())
+  name          String
+  email         String    @unique
+  password_hash String
+  role          Role
+  is_active     Boolean   @default(true)
+  last_login_at DateTime?
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+
+  student   Student?        @relation("UserStudent")
+  teacher   Teacher?        @relation("UserTeacher")
+  corrections AttendanceCorrection[] @relation("RequestedBy")
+  correctionsReviewed AttendanceCorrection[] @relation("ReviewedBy")
+  leavesApproved Leave[]    @relation("ApprovedBy")
+  attendanceMarked Attendance[] @relation("MarkedBy")
+  auditLogs AuditLog[]      @relation("ChangedBy")
+  settings  Settings[]      @relation("UpdatedBy")
+  notifications Notification[] @relation("UserNotifications")
+}
+
+model Department {
+  department_id String   @id @default(uuid())
+  name          String
+  code          String   @unique
+  hod_id        String?  @unique
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  hod      Teacher?  @relation("DeptHOD", fields: [hod_id], references: [teacher_id])
+  courses  Course[]
+  teachers Teacher[] @relation("DeptTeachers")
+}
+
+model AcademicYear {
+  academic_year_id String  @id @default(uuid())
+  name             String  @unique
+  start_date       DateTime
+  end_date         DateTime
+  is_current       Boolean @default(false)
+
+  semesters Semester[]
+}
+
+model Semester {
+  semester_id      String @id @default(uuid())
+  academic_year_id String
+  semester_number  Int
+  start_date       DateTime
+  end_date         DateTime
+  is_active        Boolean @default(true)
+
+  academicYear AcademicYear @relation(fields: [academic_year_id], references: [academic_year_id])
+  sections     Section[]
+  subjects     Subject[]
+  enrollments  Enrollment[]
+
+  @@unique([academic_year_id, semester_number])
+}
+
+model Course {
+  course_id      String @id @default(uuid())
+  course_name    String
+  course_code    String @unique
+  department_id  String
+  duration_years Int    @default(4)
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  department Department @relation(fields: [department_id], references: [department_id])
+  sections   Section[]
+  subjects   Subject[]
+  students   Student[]
+}
+
+model Section {
+  section_id   String @id @default(uuid())
+  section_name String
+  course_id    String
+  semester_id  String
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  course      Course   @relation(fields: [course_id], references: [course_id])
+  semester    Semester @relation(fields: [semester_id], references: [semester_id])
+  students    Student[]
+  subjectTeachers SubjectTeacher[]
+  enrollments Enrollment[]
+  timetables  Timetable[]
+  classSessions ClassSession[]
+}
+
+model Subject {
+  subject_id   String @id @default(uuid())
+  subject_code String @unique
+  subject_name String
+  course_id    String
+  semester_id  String
+  credits      Int    @default(3)
+  type         SubjectType @default(theory)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  course    Course   @relation(fields: [course_id], references: [course_id])
+  semester  Semester @relation(fields: [semester_id], references: [semester_id])
+  subjectTeachers SubjectTeacher[]
+  enrollments Enrollment[]
+  timetables  Timetable[]
+  classSessions ClassSession[]
+}
+
+model SubjectTeacher {
+  id         String @id @default(uuid())
+  subject_id String
+  teacher_id String
+  section_id String
+  created_at DateTime @default(now())
+
+  subject Subject @relation(fields: [subject_id], references: [subject_id])
+  teacher Teacher @relation(fields: [teacher_id], references: [teacher_id])
+  section Section @relation(fields: [section_id], references: [section_id])
+  timetables Timetable[]
+
+  @@unique([subject_id, section_id])
+}
+
+model Student {
+  student_id   String @id @default(uuid())
+  user_id      String @unique
+  name         String
+  roll_no      String @unique
+  email        String @unique
+  phone        String?
+  course_id    String
+  section_id   String
+  parent_email String?
+  parent_phone String?
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  user        User     @relation("UserStudent", fields: [user_id], references: [user_id])
+  course      Course   @relation(fields: [course_id], references: [course_id])
+  section     Section  @relation(fields: [section_id], references: [section_id])
+  enrollments Enrollment[]
+  attendance  Attendance[]
+  leaves      Leave[]
+  notifications Notification[]
+}
+
+model Teacher {
+  teacher_id    String @id @default(uuid())
+  user_id       String @unique
+  name          String
+  employee_id   String @unique
+  department_id String
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  user        User     @relation("UserTeacher", fields: [user_id], references: [user_id])
+  department  Department @relation("DeptTeachers", fields: [department_id], references: [department_id])
+  hodOf       Department? @relation("DeptHOD")
+  subjectTeachers SubjectTeacher[]
+  timetables  Timetable[]
+  classSessions ClassSession[]
+}
+
+model Enrollment {
+  enrollment_id String @id @default(uuid())
+  student_id    String
+  subject_id    String
+  semester_id   String
+  section_id    String
+  status        EnrollmentStatus @default(active)
+  enrolled_at   DateTime @default(now())
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  student Student  @relation(fields: [student_id], references: [student_id])
+  subject Subject  @relation(fields: [subject_id], references: [subject_id])
+  semester Semester @relation(fields: [semester_id], references: [semester_id])
+  section Section  @relation(fields: [section_id], references: [section_id])
+
+  @@index([student_id, semester_id, status])
+  @@unique([student_id, subject_id, semester_id, section_id])
+}
+
+model Timetable {
+  timetable_id String @id @default(uuid())
+  subject_id   String
+  section_id   String
+  teacher_id   String
+  day_of_week  DayOfWeek
+  start_time   String
+  end_time     String
+  room_no      String
+  session_type SessionType @default(lecture)
+  is_active    Boolean @default(true)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  subject  Subject @relation(fields: [subject_id], references: [subject_id])
+  section  Section @relation(fields: [section_id], references: [section_id])
+  teacher  Teacher @relation(fields: [teacher_id], references: [teacher_id])
+  subjectTeacher SubjectTeacher? @relation(fields: [subject_id, section_id], references: [subject_id, section_id])
+  classSessions ClassSession[]
+
+  @@index([teacher_id, day_of_week])
+  @@index([section_id, day_of_week])
+  @@index([room_no, day_of_week])
+}
+
+model ClassSession {
+  session_id   String @id @default(uuid())
+  timetable_id String?
+  subject_id   String
+  section_id   String
+  teacher_id   String
+  date         DateTime
+  start_time   String
+  end_time     String
+  session_type SessionType @default(lecture)
+  status       ClassSessionStatus @default(scheduled)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  timetable  Timetable? @relation(fields: [timetable_id], references: [timetable_id])
+  subject    Subject    @relation(fields: [subject_id], references: [subject_id])
+  section    Section    @relation(fields: [section_id], references: [section_id])
+  teacher    Teacher    @relation(fields: [teacher_id], references: [teacher_id])
+  attendance Attendance[]
+  qrSessions AttendanceQRSession[]
+
+  @@index([section_id, date])
+  @@index([teacher_id, date])
+}
+
+model Attendance {
+  attendance_id String @id @default(uuid())
+  session_id    String
+  student_id    String
+  status        AttendanceStatus
+  marked_by     String
+  method        AttendanceMethod @default(manual)
+  marked_at     DateTime @default(now())
+  device_id     String?
+  remarks       String?
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  session ClassSession @relation(fields: [session_id], references: [session_id])
+  student Student      @relation(fields: [student_id], references: [student_id])
+  markedByUser User    @relation("MarkedBy", fields: [marked_by], references: [user_id])
+  corrections AttendanceCorrection[]
+
+  @@unique([session_id, student_id])
+  @@index([student_id, session_id])
+}
+
+model AttendanceCorrection {
+  correction_id    String @id @default(uuid())
+  attendance_id    String
+  requested_by     String
+  old_status       AttendanceStatus
+  requested_status AttendanceStatus
+  reason           String
+  document_url     String?
+  status           ApprovalStatus @default(pending)
+  reviewed_by      String?
+  reviewed_at      DateTime?
+  rejection_reason String?
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  attendance Attendance @relation(fields: [attendance_id], references: [attendance_id])
+  requestedByUser User  @relation("RequestedBy", fields: [requested_by], references: [user_id])
+  reviewedByUser  User? @relation("ReviewedBy", fields: [reviewed_by], references: [user_id])
+}
+
+model AttendanceQRSession {
+  qr_id      String @id @default(uuid())
+  session_id String
+  token_hash String
+  created_at DateTime @default(now())
+  expires_at DateTime
+  revoked_at DateTime?
+
+  session ClassSession @relation(fields: [session_id], references: [session_id])
+}
+
+model Leave {
+  leave_id         String @id @default(uuid())
+  student_id       String
+  from_date        DateTime
+  to_date          DateTime
+  reason           String
+  document_url     String?
+  status           ApprovalStatus @default(pending)
+  approved_by      String?
+  approved_at      DateTime?
+  rejection_reason String?
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  student Student @relation(fields: [student_id], references: [student_id])
+  approvedByUser User? @relation("ApprovedBy", fields: [approved_by], references: [user_id])
+}
+
+model Notification {
+  notification_id String @id @default(uuid())
+  user_id         String
+  student_id      String?
+  message         String
+  type            NotificationType
+  channel         NotificationChannel @default(in_app)
+  status          NotificationStatus @default(pending)
+  sent_at         DateTime?
+  read_at         DateTime?
+  error_message   String?
+  created_at      DateTime @default(now())
+
+  user    User     @relation("UserNotifications", fields: [user_id], references: [user_id])
+  student Student? @relation(fields: [student_id], references: [student_id])
+
+  @@index([user_id, read_at])
+}
+
+model AuditLog {
+  log_id     String @id @default(uuid())
+  table_name String
+  record_id  String
+  action     AuditAction
+  changed_by String
+  changed_at DateTime @default(now())
+  old_value  Json?
+  new_value  Json?
+  ip_address String?
+  user_agent String?
+  request_id String?
+
+  changedByUser User @relation("ChangedBy", fields: [changed_by], references: [user_id])
+
+  @@index([table_name, record_id])
+}
+
+model Settings {
+  key        String   @id
+  value      String
+  updated_by String
+  updated_at DateTime @updatedAt
+
+  updatedByUser User @relation("UpdatedBy", fields: [updated_by], references: [user_id])
+}
