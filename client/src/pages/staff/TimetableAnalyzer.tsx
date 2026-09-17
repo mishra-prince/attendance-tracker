@@ -16,7 +16,7 @@ export default function TimetableAnalyzer() {
   const [sections, setSections] = useState<{ section_id: string; section_name: string }[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  useState(() => { api.get('/admin/sections').then((r) => setSections(r.data.data ?? r.data)).catch(() => {}); });
+  useState(() => { api.get('/catalog/sections').then((r) => setSections(r.data.data)).catch(() => {}); });
 
   async function pick(f: File | undefined) {
     if (!f || !sectionId) return;

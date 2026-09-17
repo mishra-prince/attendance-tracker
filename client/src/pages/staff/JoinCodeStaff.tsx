@@ -10,7 +10,7 @@ export default function JoinCodeStaff() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
 
-  useState(() => { api.get('/admin/sections').then((r) => setSections(r.data.data ?? r.data)).catch(() => {}); });
+  useState(() => { api.get('/catalog/sections').then((r) => setSections(r.data.data)).catch(() => {}); });
 
   async function generate() {
     if (!sectionId) return;
