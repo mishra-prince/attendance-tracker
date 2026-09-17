@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { api, errMsg } from '../../lib/api';
+import { RowSkeleton } from '../../components/skeletons';
 
 interface Item { id: string; kind: 'correction' | 'leave'; title: string; sub: string; detail: string }
 
 export default function ApprovalsPage() {
   const [items, setItems] = useState<Item[]>([]);
+  const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState('');
 
   async function load() {
@@ -50,7 +52,11 @@ export default function ApprovalsPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="text-bone text-lg font-semibold">Approvals</div>
-      {items.map((it) => (
+      {loading ? (
+        <RowSkeleton />
+      ) : (
+        <>
+{items.map((it) => (
         <div key={it.kind + it.id} className="glass-medium rounded-xl p-4 flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <div>
@@ -66,6 +72,8 @@ export default function ApprovalsPage() {
         </div>
       ))}
       {!items.length && <div className="text-ash">Nothing pending 🎉</div>}
+        </>
+      )}
       {msg && <div className="text-sm text-ash">{msg}</div>}
     </div>
   );

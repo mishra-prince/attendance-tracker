@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
+import { RowSkeleton } from '../../components/skeletons';
 
 interface Session {
   session_id: string;
@@ -13,10 +14,12 @@ interface Session {
 
 export default function SessionsPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
 
   useEffect(() => {
-    api.get('/sessions').then((r) => setSessions(r.data.data));
+    api.get('/sessions').then((r) => setSessions(r.data.data))
+      .finally(() => setLoading(false));
   }, []);
 
   const shown = sessions.filter((s) => filter === 'all' || s.status === filter);
@@ -31,7 +34,11 @@ export default function SessionsPage() {
           </button>
         ))}
       </div>
-      {shown.map((s) => (
+      {loading ? (
+        <RowSkeleton />
+      ) : (
+        <>
+{shown.map((s) => (
         <Link key={s.session_id} to={`/staff/sessions/${s.session_id}`} className="glass-medium rounded-xl px-4 py-3 flex items-center justify-between no-underline text-bone">
           <div>
             <div className="font-medium">{s.subject.subject_name}</div>
@@ -41,6 +48,8 @@ export default function SessionsPage() {
         </Link>
       ))}
       {!shown.length && <div className="text-ash">No sessions.</div>}
+        </>
+      )}
     </div>
   );
 }

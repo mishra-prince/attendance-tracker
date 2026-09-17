@@ -1,6 +1,13 @@
 import axios from 'axios';
 
-export const api = axios.create({ baseURL: '/api' });
+// API base: tunneled public URL so the Android APK works from anywhere.
+// Web dev (vite) uses the /api proxy instead.
+const IS_NATIVE = !!(window as any).Capacitor?.isNativePlatform?.();
+export const API_BASE = IS_NATIVE
+  ? 'https://att.threshold.dpdns.org'
+  : '';
+
+export const api = axios.create({ baseURL: `${API_BASE}/api` });
 
 api.interceptors.request.use((cfg) => {
   const raw = localStorage.getItem('auth');
@@ -21,7 +28,7 @@ api.interceptors.response.use(
         const raw = localStorage.getItem('auth');
         if (!raw) throw new Error('no auth');
         const { refreshToken } = JSON.parse(raw);
-        const res = await axios.post('/api/auth/refresh', { refreshToken });
+        const res = await axios.post(`${API_BASE}/api/auth/refresh`, { refreshToken });
         const auth = JSON.parse(raw);
         auth.accessToken = res.data.data.accessToken;
         localStorage.setItem('auth', JSON.stringify(auth));

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { useAuth } from '../../store/auth';
+import { CardSkeleton, RowSkeleton } from '../../components/skeletons';
 
 interface Row {
   roll_no: string;
@@ -21,10 +22,11 @@ export default function StaffHome() {
   const user = useAuth((s) => s.user)!;
   const [sessions, setSessions] = useState<Session[]>([]);
   const [defaulters, setDefaulters] = useState<Row[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     api.get('/sessions').then((r) => setSessions(r.data.data.slice(0, 5))).catch(() => {});
-    api.get('/analytics/defaulters').then((r) => setDefaulters(r.data.data.defaulters.slice(0, 5))).catch(() => {});
+    api.get('/analytics/defaulters').then((r) => setDefaulters(r.data.data.defaulters.slice(0, 5))).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   const open = sessions.filter((s) => s.status === 'open').length;
@@ -36,6 +38,8 @@ export default function StaffHome() {
         <div className="text-bone text-xl font-semibold">{user.name}</div>
       </div>
 
+      {loading && <div className="grid grid-cols-2 gap-3"><CardSkeleton h="h-28" /><CardSkeleton h="h-28" /></div>}
+      {!loading && (
       <div className="grid grid-cols-2 gap-3">
         <div className="glass-medium rounded-2xl p-5">
           <div className="display-numeral !text-5xl text-bone">{open}</div>
@@ -47,6 +51,9 @@ export default function StaffHome() {
         </div>
       </div>
 
+      )}
+
+      {loading ? <RowSkeleton rows={3} /> : (
       <div className="flex flex-col gap-3">
         <div className="text-ash text-sm">Recent sessions</div>
         {sessions.map((s) => (
@@ -60,6 +67,7 @@ export default function StaffHome() {
         ))}
         {!sessions.length && <div className="text-ash">No sessions yet.</div>}
       </div>
+      )}
 
       {defaulters.length > 0 && (
         <div className="flex flex-col gap-3">

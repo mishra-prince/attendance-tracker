@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { api, errMsg } from '../../lib/api';
+import { RowSkeleton, Skeleton } from '../../components/skeletons';
 
 interface Rec { studentId: string; roll_no: string; name: string; status: string }
 interface Sess { session_id: string; status: string; subject: { subject_name: string; subject_code: string }; section: { section_name: string } }
@@ -61,7 +62,13 @@ export default function SessionMark() {
   }
 
   if (err && !sess) return <div className="text-signal">{err}</div>;
-  if (!sess) return <div className="text-ash">Loading…</div>;
+  if (!sess) return (
+    <div className="flex flex-col gap-5">
+      <Skeleton className="h-8 w-48" />
+      <Skeleton className="h-10 w-32" />
+      <RowSkeleton rows={8} />
+    </div>
+  );
 
   return (
     <div className="flex flex-col gap-5">

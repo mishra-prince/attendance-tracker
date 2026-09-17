@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { api, errMsg } from '../lib/api';
 import { useAuth } from '../store/auth';
+import { spring } from '../components/motion';
 
 const DEMO = [
   ['Student', 'student@att.edu'],
@@ -37,12 +39,23 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-full flex flex-col items-center justify-center px-6 gap-8">
-      <div className="text-center">
+      <motion.div
+        className="text-center"
+        initial={{ opacity: 0, y: 16, scale: 0.96 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={spring}
+      >
         <div className="text-signal text-2xl font-semibold tracking-tight">Attendance</div>
         <div className="text-ash text-sm mt-1">College · Sign in to continue</div>
-      </div>
+      </motion.div>
 
-      <form onSubmit={submit} className="glass-medium rounded-2xl p-6 w-full max-w-sm flex flex-col gap-4 sweep relative overflow-hidden">
+      <motion.form
+        onSubmit={submit}
+        className="glass-medium rounded-2xl p-6 w-full max-w-sm flex flex-col gap-4 sweep relative overflow-hidden"
+        initial={{ opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ ...spring, delay: 0.08 }}
+      >
         <div>
           <label className="text-ash text-xs mb-1.5 block">Email</label>
           <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
@@ -51,11 +64,32 @@ export default function LoginPage() {
           <label className="text-ash text-xs mb-1.5 block">Password</label>
           <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
         </div>
-        {error && <div className="text-signal text-sm">{error}</div>}
-        <button className="btn-primary" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
-      </form>
+        {error && (
+          <motion.div
+            className="text-signal text-sm"
+            initial={{ opacity: 0, x: -8 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={spring}
+          >
+            {error}
+          </motion.div>
+        )}
+        <motion.button
+          className="btn-primary"
+          disabled={busy}
+          whileTap={{ scale: 0.97 }}
+          animate={busy ? { opacity: 0.7 } : { opacity: 1 }}
+        >
+          {busy ? 'Signing in…' : 'Sign in'}
+        </motion.button>
+      </motion.form>
 
-      <div className="glass-heavy rounded-2xl p-4 w-full max-w-sm">
+      <motion.div
+        className="glass-heavy rounded-2xl p-4 w-full max-w-sm"
+        initial={{ opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ ...spring, delay: 0.16 }}
+      >
         <div className="text-muted text-xs mb-2">Demo accounts — password: Password@123</div>
         <div className="flex flex-wrap gap-2">
           {DEMO.map(([label, mail]) => (
@@ -69,7 +103,7 @@ export default function LoginPage() {
             </button>
           ))}
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Bell } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { api } from '../../lib/api';
 import { useAuth } from '../../store/auth';
+import { Stagger, StaggerItem, Pressable, spring } from '../../components/motion';
 
 interface Summary {
   overall: { percentage: number; eligible_sessions: number; counted_present: number };
@@ -22,31 +25,44 @@ export default function StudentHome() {
   }, [user.studentId]);
 
   if (err) return <div className="text-signal p-6">{err}</div>;
-  if (!data) return <div className="text-ash p-6">Loading…</div>;
+  if (!data)
+    return (
+      <div className="p-6 flex flex-col gap-4">
+        <div className="skeleton h-16 w-2/3" />
+        <div className="skeleton h-40 w-full" />
+        <div className="skeleton h-16 w-full" />
+        <div className="skeleton h-16 w-full" />
+      </div>
+    );
 
   const pct = Math.round(data.overall.percentage);
   const pctColor = pct >= 75 ? 'text-bone' : 'text-signal';
 
   return (
-    <div className="p-6 flex flex-col gap-6">
-      <div>
-        <div className="text-ash text-sm">Good day</div>
-        <div className="text-bone text-xl font-semibold">{user.name}</div>
-      </div>
+    <Stagger className="p-6 flex flex-col gap-6">
+      <StaggerItem className="flex items-start justify-between">
+        <div>
+          <div className="text-ash text-sm">Good day</div>
+          <div className="text-bone text-xl font-semibold">{user.name}</div>
+        </div>
+        <Link to="/student/notifications" className="glass-chip p-2 rounded-full no-underline" aria-label="Notifications">
+          <Bell size={18} className="text-bone" />
+        </Link>
+      </StaggerItem>
 
-      <div className="glass-medium rounded-2xl p-6 text-center relative overflow-hidden sweep">
+      <StaggerItem className="glass-medium rounded-2xl p-6 text-center relative overflow-hidden sweep card-lift">
         <div className={`display-numeral ${pctColor}`}>{pct}<span className="text-3xl text-ash">%</span></div>
         <div className="text-ash text-sm mt-2">
           {data.overall.counted_present}/{data.overall.eligible_sessions} classes · you can still miss{' '}
           <span className="text-signal font-medium">{data.condonation.classes_can_still_miss}</span>
         </div>
-      </div>
+      </StaggerItem>
 
       <div className="grid gap-3">
-        {data.subjects.map((s) => {
+        {data.subjects.map((s, i) => {
           const ok = s.percentage >= 75;
           return (
-            <div key={s.subject_code} className="glass-medium rounded-xl px-4 py-3 flex items-center justify-between">
+            <StaggerItem key={s.subject_code} className="glass-medium rounded-xl px-4 py-3 flex items-center justify-between card-lift">
               <div>
                 <div className="font-medium">{s.subject_name}</div>
                 <div className="text-muted text-xs">{s.subject_code}</div>
@@ -54,12 +70,36 @@ export default function StudentHome() {
               <span className={`badge ${ok ? 'badge-present' : 'badge-absent'}`}>
                 {Math.round(s.percentage)}%
               </span>
-            </div>
+            </StaggerItem>
           );
         })}
       </div>
 
-      <Link to="/student/scan" className="btn-primary text-center no-underline">Scan QR to check in</Link>
-    </div>
+      {'classes_needed_to_reach_threshold' in data.condonation && (data.condonation as any).classes_needed_to_reach_threshold > 0 && (
+        <StaggerItem><Link to="/student/condonation" className="glass-medium rounded-2xl p-4 no-underline flex items-center justify-between card-lift">
+          <div>
+            <div className="text-signal font-medium text-sm">Below minimum attendance</div>
+            <div className="text-ash text-xs mt-0.5">Apply for condonation →</div>
+          </div>
+          <span className="text-signal text-lg">⚠</span>
+        </Link></StaggerItem>
+      )}
+
+      <StaggerItem>
+        <motion.div whileTap={{ scale: 0.97 }} transition={spring}>
+          <Link to="/student/scan" className="btn-primary text-center no-underline block pulse-glow">Scan QR to check in</Link>
+        </motion.div>
+      </StaggerItem>
+
+      <StaggerItem>
+        <Link to="/student/join" className="glass-medium rounded-xl px-4 py-3 no-underline flex items-center justify-between card-lift">
+          <div>
+            <div className="text-bone text-sm font-medium">Join a class</div>
+            <div className="text-ash text-xs mt-0.5">Enter a code from your teacher</div>
+          </div>
+          <span className="text-ash">›</span>
+        </Link>
+      </StaggerItem>
+    </Stagger>
   );
 }

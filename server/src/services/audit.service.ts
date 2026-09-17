@@ -5,7 +5,7 @@ import { httpError } from '../middleware/error.middleware';
 export async function audit(opts: {
   tableName: string;
   recordId: string;
-  action: 'CREATE' | 'UPDATE' | 'DELETE' | 'APPROVE' | 'REJECT' | 'LOCK';
+  action: 'CREATE' | 'UPDATE' | 'DELETE' | 'APPROVE' | 'REJECT' | 'LOCK' | 'BLE_FINALIZE';
   changedBy: string;
   oldValue?: any;
   newValue?: any;

@@ -6,12 +6,25 @@ import authRoutes from './controllers/auth.controller';
 import attendanceRoutes from './controllers/attendance.controller';
 import leaveRoutes from './controllers/leave.controller';
 import adminRoutes from './controllers/admin.controller';
+import featuresRoutes from './controllers/features.controller';
+import aiRoutes from './controllers/ai.controller';
+import classroomRoutes from './controllers/classroom.controller';
+import bleRoutes from './controllers/ble.controller';
 import { errorMiddleware } from './middleware/error.middleware';
 
 const app = express();
 
+app.set('trust proxy', 1); // behind Cloudflare tunnel — fixes express-rate-limit ERR_ERL_UNEXPECTED_X_FORWARDED_FOR
+
 app.use(helmet());
-app.use(cors({ origin: process.env.CLIENT_URL?.split(',') || ['http://localhost:5173'], credentials: true }));
+app.use(cors({
+  origin: (origin, cb) => {
+    const allowed = [...(process.env.CLIENT_URL?.split(',') || []), 'http://localhost:5173', 'https://localhost', 'http://localhost', 'capacitor://localhost'];
+    if (!origin || allowed.includes(origin) || origin.endsWith('threshold.dpdns.org')) return cb(null, true);
+    return cb(null, false);
+  },
+  credentials: true,
+}));
 app.use(express.json({ limit: '5mb' }));
 app.use(cookieParser());
 
@@ -21,6 +34,10 @@ app.use('/api/auth', authRoutes);
 app.use('/api', attendanceRoutes);
 app.use('/api', leaveRoutes);
 app.use('/api', adminRoutes);
+app.use('/api', featuresRoutes);
+app.use('/api/ai', aiRoutes);
+app.use('/api/classroom', classroomRoutes);
+app.use('/api/ble', bleRoutes);
 
 app.use(errorMiddleware);
 

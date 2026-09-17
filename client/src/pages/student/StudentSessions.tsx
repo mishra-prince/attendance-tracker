@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { useAuth } from '../../store/auth';
+import { RowSkeleton } from '../../components/skeletons';
 
 interface Att {
   attendance_id: string;
@@ -14,10 +15,12 @@ const badge = (s: string) =>
 export default function StudentSessions() {
   const user = useAuth((s) => s.user)!;
   const [rows, setRows] = useState<Att[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user.studentId) return;
-    api.get(`/students/${user.studentId}/attendance`).then((r) => setRows(r.data.data));
+    api.get(`/students/${user.studentId}/attendance`).then((r) => setRows(r.data.data))
+      .finally(() => setLoading(false));
   }, [user.studentId]);
 
   return (

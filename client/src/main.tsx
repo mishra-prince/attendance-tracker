@@ -10,11 +10,17 @@ import StudentHome from './pages/student/StudentHome';
 import StudentSessions from './pages/student/StudentSessions';
 import StudentScan from './pages/student/StudentScan';
 import StudentProfile from './pages/student/StudentProfile';
+import StudentAnalytics from './pages/student/StudentAnalytics';
+import NotificationsPage from './pages/student/NotificationsPage';
+import CondonationApply from './pages/student/CondonationApply';
 import StaffHome from './pages/staff/StaffHome';
 import SessionsPage from './pages/staff/SessionsPage';
 import SessionMark from './pages/staff/SessionMark';
 import ApprovalsPage from './pages/staff/ApprovalsPage';
 import AdminPage from './pages/staff/AdminPage';
+import TimetableAnalyzer from './pages/staff/TimetableAnalyzer';
+import JoinCodeStaff from './pages/staff/JoinCodeStaff';
+import JoinSectionStudent from './pages/student/JoinSectionStudent';
 
 function Protected({ roles }: { roles?: Role[] }) {
   const user = useAuth((s) => s.user);
@@ -41,6 +47,10 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route index element={<StudentHome />} />
             <Route path="sessions" element={<StudentSessions />} />
             <Route path="scan" element={<StudentScan />} />
+            <Route path="analytics" element={<StudentAnalytics />} />
+            <Route path="notifications" element={<NotificationsPage />} />
+            <Route path="condonation" element={<CondonationApply />} />
+            <Route path="join" element={<JoinSectionStudent />} />
             <Route path="profile" element={<StudentProfile />} />
           </Route>
         </Route>
@@ -52,6 +62,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="sessions/:id" element={<SessionMark />} />
             <Route path="approvals" element={<ApprovalsPage />} />
             <Route path="admin" element={<AdminPage />} />
+            <Route path="analyzer" element={<TimetableAnalyzer />} />
+            <Route path="join-code" element={<JoinCodeStaff />} />
           </Route>
         </Route>
 

@@ -56,6 +56,7 @@ enum AttendanceStatus {
 enum AttendanceMethod {
   manual
   QR
+  BLE_AUTO
 }
 
 enum EnrollmentStatus {
@@ -96,6 +97,7 @@ enum AuditAction {
   APPROVE
   REJECT
   LOCK
+  BLE_FINALIZE
 }
 
 model User {
@@ -179,6 +181,8 @@ model Section {
   section_name String
   course_id    String
   semester_id  String
+  join_code    String? @unique
+  join_code_expires_at DateTime?
   created_at   DateTime @default(now())
   updated_at   DateTime @updatedAt
 
@@ -241,6 +245,8 @@ model Student {
 
   user        User     @relation("UserStudent", fields: [user_id], references: [user_id])
   course      Course   @relation(fields: [course_id], references: [course_id])
+  blePings    BlePing[]
+  anchorSightings AnchorSighting[]
   section     Section  @relation(fields: [section_id], references: [section_id])
   enrollments Enrollment[]
   attendance  Attendance[]
@@ -450,4 +456,50 @@ model Settings {
   updated_at DateTime @updatedAt
 
   updatedByUser User @relation("UpdatedBy", fields: [updated_by], references: [user_id])
+}
+
+model BleSession {
+  session_id     String   @id @default(uuid())
+  timetable_id   String?
+  class_session_id String? @unique
+  subject_id     String
+  section_id     String
+  teacher_id     String
+  date           DateTime
+  start_time     String
+  end_time       String
+  beacon_nonce   String
+  status         String   @default("active") // active | finalized | cancelled
+  required_minutes Int    @default(30)       // 55% dwell rule, computed at start
+  finalized_at   DateTime?
+  anchor_required Boolean  @default(false)   // ESP32 anchor cross-check (flag)
+  created_at     DateTime @default(now())
+
+  blePings BlePing[]
+  @@index([section_id, date])
+}
+
+model BlePing {
+  ping_id    String   @id @default(uuid())
+  session_id String
+  student_id String
+  rssi       Int
+  seen_at    DateTime @default(now())
+  anchor_ok  Boolean?
+
+  bleSession BleSession @relation(fields: [session_id], references: [session_id])
+  student    Student    @relation(fields: [student_id], references: [student_id])
+  @@unique([session_id, student_id, seen_at])
+  @@index([session_id, student_id])
+}
+
+model AnchorSighting {
+  id         String   @id @default(uuid())
+  anchor_id  String
+  room_no    String
+  student_id String
+  rssi       Int
+  seen_at    DateTime @default(now())
+  student    Student  @relation(fields: [student_id], references: [student_id])
+  @@index([student_id, seen_at])
 }

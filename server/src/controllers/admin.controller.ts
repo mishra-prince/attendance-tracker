@@ -90,12 +90,65 @@ router.post('/teachers', requireRole('ADMIN', 'SUPER_ADMIN'), validateBody(z.obj
   employee_id: z.string().min(1), department_id: z.string(),
 })), async (req: AuthRequest, res, next) => {
   try {
-    const { password, ...rest } = req.body;
+    const { password, email, ...rest } = req.body;
     const user = await prisma.user.create({
-      data: { name: rest.name, email: rest.email, password_hash: await hashPassword(password), role: 'TEACHER' },
+      data: { name: rest.name, email, password_hash: await hashPassword(password), role: 'TEACHER' },
     });
     const teacher = await prisma.teacher.create({ data: { ...rest, user_id: user.user_id } });
     res.status(201).json({ success: true, data: teacher });
+  } catch (e) { next(e); }
+});
+
+// ---- Bulk CSV import (students or teachers) ----
+router.post('/bulk-import', requireRole('ADMIN', 'SUPER_ADMIN'), async (req: AuthRequest, res, next) => {
+  try {
+    const { type, rows } = req.body as { type: 'students' | 'teachers'; rows: Record<string, string>[] };
+    if (!rows || !Array.isArray(rows) || rows.length === 0) throw httpError(400, 'rows required');
+    const results: { row: number; email: string; ok: boolean; error?: string }[] = [];
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      try {
+        if (type === 'students') {
+          if (!r.name || !r.email || !r.roll_no || !r.course_code || !r.section_name) throw new Error('missing fields (name,email,roll_no,course_code,section_name)');
+          const course = await prisma.course.findFirst({ where: { course_code: r.course_code } });
+          if (!course) throw new Error(`course ${r.course_code} not found`);
+          const section = await prisma.section.findFirst({ where: { section_name: r.section_name, course_id: course.course_id } });
+          if (!section) throw new Error(`section ${r.section_name} not found in ${r.course_code}`);
+          const password = r.password || 'Password@123';
+          const user = await prisma.user.create({
+            data: { name: r.name, email: r.email, password_hash: await hashPassword(password), role: 'STUDENT' },
+          });
+          await prisma.student.create({ data: {
+            user_id: user.user_id, name: r.name, roll_no: r.roll_no, email: r.email,
+            phone: r.phone || null, course_id: course.course_id, section_id: section.section_id,
+            parent_email: r.parent_email || null, parent_phone: r.parent_phone || null,
+          }});
+        } else {
+          if (!r.name || !r.email || !r.employee_id || !r.department_code) throw new Error('missing fields (name,email,employee_id,department_code)');
+          const dept = await prisma.department.findFirst({ where: { code: r.department_code } });
+          if (!dept) throw new Error(`department ${r.department_code} not found`);
+          const user = await prisma.user.create({
+            data: { name: r.name, email: r.email, password_hash: await hashPassword(r.password || 'Password@123'), role: 'TEACHER' },
+          });
+          await prisma.teacher.create({ data: {
+            user_id: user.user_id, name: r.name, employee_id: r.employee_id, department_id: dept.department_id,
+          }});
+        }
+        results.push({ row: i + 1, email: r.email, ok: true });
+      } catch (rowErr: any) {
+        results.push({ row: i + 1, email: r.email || '(?)', ok: false, error: rowErr.message });
+      }
+    }
+    const okCount = results.filter((x) => x.ok).length;
+    await audit({ tableName: 'User', recordId: 'bulk-import', action: 'CREATE', changedBy: req.user!.userId, newValue: { type, ok: okCount, total: rows.length }, ...auditFromReq(req) });
+    res.status(201).json({ success: true, data: { total: rows.length, created: okCount, failed: rows.length - okCount, results } });
+  } catch (e) { next(e); }
+});
+
+router.get('/teachers', requireRole('ADMIN', 'SUPER_ADMIN'), async (req, res, next) => {
+  try {
+    const rows = await prisma.teacher.findMany({ include: { department: true }, take: 500 });
+    res.json({ success: true, data: rows });
   } catch (e) { next(e); }
 });
 
