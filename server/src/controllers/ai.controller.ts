@@ -51,9 +51,8 @@ router.post('/parse-timetable', requireRole('TEACHER', 'HOD', 'ADMIN', 'SUPER_AD
       if (r.status !== 503) break;
       await new Promise((res) => setTimeout(res, 1500 * (attempt + 1)));
     }
-    if (!r.ok) {
-      const t = await r.text();
-      throw httpError(502, `AI service error (${r.status})`);
+    if (!r || !r.ok) {
+      throw httpError(502, `AI service error (${r?.status ?? 'no response'})`);
     }
     const data = await r.json() as any;
     const text: string = data?.candidates?.[0]?.content?.parts?.map((p: any) => p.text || '').join('') || '';
