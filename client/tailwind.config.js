@@ -1,4 +1,6 @@
 /** @type {import('tailwindcss').Config} */
+import konsta from 'konsta/plugin-colors.js';
+
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {

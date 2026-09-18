@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import './index.css';
 import { useAuth, Role } from './store/auth';
+import useNativeTheme from './hooks/useNativeTheme';
 import LoginPage from './pages/LoginPage';
 import StudentLayout from './layouts/StudentLayout';
 import StaffLayout from './layouts/StaffLayout';
@@ -35,8 +36,9 @@ function Home() {
   return <Navigate to={user.role === 'STUDENT' ? '/student' : '/staff'} replace />;
 }
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
+function Shell() {
+  useNativeTheme();
+  return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Home />} />
@@ -70,5 +72,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <Shell />
   </React.StrictMode>
 );
