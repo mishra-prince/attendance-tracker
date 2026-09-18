@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { App as CapApp } from '@capacitor/app';
 import './index.css';
 import { useAuth, Role } from './store/auth';
 import useNativeTheme from './hooks/useNativeTheme';
@@ -36,10 +37,29 @@ function Home() {
   return <Navigate to={user.role === 'STUDENT' ? '/student' : '/staff'} replace />;
 }
 
+function BackHandler() {
+  const nav = useNavigate();
+  const loc = useLocation();
+  useEffect(() => {
+    CapApp.addListener('backButton', ({ canGoBack }) => {
+      if (canGoBack) {
+        nav(-1);
+      } else if (loc.pathname !== '/') {
+        nav('/', { replace: true });
+      } else {
+        CapApp.exitApp();
+      }
+    });
+    return () => { CapApp.removeAllListeners(); };
+  }, [loc.pathname]);
+  return null;
+}
+
 function Shell() {
   useNativeTheme();
   return (
     <BrowserRouter>
+      <BackHandler />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<LoginPage />} />
