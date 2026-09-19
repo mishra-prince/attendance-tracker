@@ -6,6 +6,7 @@ import './index.css';
 import { useAuth, Role } from './store/auth';
 import useNativeTheme from './hooks/useNativeTheme';
 import LoginPage from './pages/LoginPage';
+import StaffLoginPage from './pages/StaffLoginPage';
 import StudentLayout from './layouts/StudentLayout';
 import StaffLayout from './layouts/StaffLayout';
 import StudentHome from './pages/student/StudentHome';
@@ -63,6 +64,7 @@ function Shell() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/staff-login" element={<StaffLoginPage />} />
 
         <Route element={<Protected roles={['STUDENT']} />}>
           <Route path="/student" element={<StudentLayout />}>

@@ -9,7 +9,13 @@ import { authLimiter } from '../middleware/rateLimit.middleware';
 
 const router = Router();
 
-const loginSchema = z.object({ email: z.string().email(), password: z.string().min(1) });
+const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+  portal: z.enum(['student', 'staff']).optional(),
+});
+
+const STAFF_ROLES = ['TEACHER', 'HOD', 'ADMIN', 'SUPER_ADMIN'];
 const signupSchema = z.object({
   name: z.string().min(1),
   email: z.string().email(),
@@ -36,13 +42,22 @@ async function buildPayload(user: any) {
 
 router.post('/login', authLimiter, validateBody(loginSchema), async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, portal } = req.body;
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user || !user.is_active) {
       return res.status(401).json({ success: false, error: 'Invalid credentials' });
     }
     const ok = await bcrypt.compare(password, user.password_hash);
     if (!ok) return res.status(401).json({ success: false, error: 'Invalid credentials' });
+
+    // Portal separation: students and staff sign in through different doors.
+    // A valid staff credential cannot log in via the student portal, and vice-versa.
+    if (portal === 'student' && user.role !== 'STUDENT') {
+      return res.status(403).json({ success: false, error: 'Use the staff portal to sign in with this account.' });
+    }
+    if (portal === 'staff' && !STAFF_ROLES.includes(user.role)) {
+      return res.status(403).json({ success: false, error: 'This is the staff portal. Students should use the main sign-in.' });
+    }
 
     await prisma.user.update({ where: { user_id: user.user_id }, data: { last_login_at: new Date() } });
     const payload = await buildPayload(user);
