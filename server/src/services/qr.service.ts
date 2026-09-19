@@ -16,7 +16,8 @@ function tokenHash(token: string): string {
 export async function generateQR(sessionId: string, teacherId: string | undefined) {
   const session = await prisma.classSession.findUnique({ where: { session_id: sessionId } });
   if (!session) throw httpError(404, 'Session not found');
-  if (!teacherId || session.teacher_id !== teacherId) throw httpError(403, 'Not your session');
+  // teacherId set = TEACHER caller, must own the session. undefined = HOD/ADMIN, any session.
+  if (teacherId && session.teacher_id !== teacherId) throw httpError(403, 'Not your session');
   if (session.status !== 'open') throw httpError(409, 'Session is not open');
 
   const token = jwt.sign({ sid: sessionId, kind: 'qr' }, QR_SECRET, { expiresIn: `${QR_TTL_MIN}m` });

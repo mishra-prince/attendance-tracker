@@ -27,6 +27,16 @@ body,
   height: 100%;
 }
 
+/* Global edge-to-edge safety: push ALL app content below the status bar / camera
+   notch and above the gesture bar. Individual sticky headers add their own inset
+   on top of this via env() as needed. */
+#root {
+  padding-top: env(safe-area-inset-top);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
   background: var(--color-void);
@@ -57,6 +67,24 @@ body {
   background: var(--glass-medium-fill);
   backdrop-filter: blur(16px) saturate(1.2);
   -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  border: 1px solid var(--glass-border);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+}
+
+/* Aliases used across pages (were undefined → unstyled/broken layout) */
+.glass-card {
+  background: var(--glass-medium-fill);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+}
+
+.glass-chip {
+  background: var(--glass-heavy-fill);
+  backdrop-filter: blur(20px) saturate(1.3);
+  -webkit-backdrop-filter: blur(20px) saturate(1.3);
   border: 1px solid var(--glass-border);
   box-shadow: inset 0 1px 0 var(--glass-highlight);
 }

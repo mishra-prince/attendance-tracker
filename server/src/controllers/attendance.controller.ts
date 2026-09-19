@@ -181,10 +181,12 @@ router.get('/students/:id/attendance/summary', async (req: AuthRequest, res, nex
 });
 
 // ---- QR ----
-router.post('/attendance/qr/generate', requireRole('TEACHER'), async (req: AuthRequest, res, next) => {
+router.post('/attendance/qr/generate', requireRole('TEACHER', 'HOD', 'ADMIN', 'SUPER_ADMIN'), async (req: AuthRequest, res, next) => {
   try {
     const { sessionId } = req.body as { sessionId: string };
-    const result = await qrGenerate(sessionId, req.user!.teacherId);
+    // Teachers may only generate for their own session; HOD/ADMIN may generate for any.
+    const scopeTeacherId = req.user!.role === 'TEACHER' ? req.user!.teacherId : undefined;
+    const result = await qrGenerate(sessionId, scopeTeacherId);
     res.status(201).json({ success: true, data: result });
   } catch (e) { next(e); }
 });
