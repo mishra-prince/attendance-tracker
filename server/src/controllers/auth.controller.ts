@@ -6,6 +6,7 @@ import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../utils/
 import { authMiddleware, requireRole, AuthRequest } from '../middleware/auth.middleware';
 import { validateBody } from '../middleware/validate.middleware';
 import { authLimiter } from '../middleware/rateLimit.middleware';
+import { httpError } from '../middleware/error.middleware';
 
 const router = Router();
 
@@ -66,6 +67,7 @@ router.post('/login', authLimiter, validateBody(loginSchema), async (req, res, n
 
     res.cookie('refresh_token', refreshToken, {
       httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
@@ -74,7 +76,7 @@ router.post('/login', authLimiter, validateBody(loginSchema), async (req, res, n
   } catch (e) { next(e); }
 });
 
-router.post('/refresh', async (req, res, next) => {
+router.post('/refresh', authLimiter, async (req, res, next) => {
   try {
     const token = req.cookies?.refresh_token;
     if (!token) return res.status(401).json({ success: false, error: 'No refresh token' });
@@ -99,7 +101,11 @@ router.post('/logout', authMiddleware, (req, res) => {
 router.post('/signup', authMiddleware, requireRole('ADMIN', 'SUPER_ADMIN'), validateBody(signupSchema), async (req: AuthRequest, res, next) => {
   try {
     const { name, email, password, role } = req.body;
-    const hash = await bcrypt.hash(password, 10);
+    // Prevent privilege escalation: only a SUPER_ADMIN may mint another SUPER_ADMIN.
+    if (role === 'SUPER_ADMIN' && req.user!.role !== 'SUPER_ADMIN') {
+      throw httpError(403, 'Only a SUPER_ADMIN may create a SUPER_ADMIN');
+    }
+    const hash = await bcrypt.hash(password, 12);
     const user = await prisma.user.create({
       data: { name, email, password_hash: hash, role },
     });

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../utils/prisma';
 import { authMiddleware, requireRole, AuthRequest } from '../middleware/auth.middleware';
 import { validateBody } from '../middleware/validate.middleware';
+import { qrLimiter, correctionLimiter } from '../middleware/rateLimit.middleware';
 import { httpError } from '../middleware/error.middleware';
 import { transitionStatus, canEditAttendance } from '../services/session.service';
 import { computeStudentSummary, condonation } from '../services/attendance.service';
@@ -10,6 +11,13 @@ import { audit, auditFromReq } from '../services/audit.service';
 
 const router = Router();
 router.use(authMiddleware);
+
+// A student may only read their OWN records; staff may read anyone's.
+function assertSelfOrStaff(req: AuthRequest, studentId: string) {
+  if (req.user!.role === 'STUDENT' && req.user!.studentId !== studentId) {
+    throw httpError(403, 'Forbidden');
+  }
+}
 
 // ---- Sessions ----
 router.get('/sessions', requireRole('TEACHER', 'HOD', 'ADMIN', 'SUPER_ADMIN'), async (req: AuthRequest, res, next) => {
@@ -64,7 +72,7 @@ router.post('/sessions/generate', requireRole('HOD', 'ADMIN', 'SUPER_ADMIN'), as
   } catch (e) { next(e); }
 });
 
-router.get('/sessions/:id', async (req: AuthRequest, res, next) => {
+router.get('/sessions/:id', requireRole('TEACHER', 'HOD', 'ADMIN', 'SUPER_ADMIN'), async (req: AuthRequest, res, next) => {
   try {
     const session = await prisma.classSession.findUnique({
       where: { session_id: req.params.id },
@@ -75,14 +83,14 @@ router.get('/sessions/:id', async (req: AuthRequest, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.put('/sessions/:id/status', validateBody(z.object({ status: z.enum(['open', 'submitted', 'locked', 'cancelled']) })), async (req: AuthRequest, res, next) => {
+router.put('/sessions/:id/status', requireRole('TEACHER', 'HOD', 'ADMIN', 'SUPER_ADMIN'), validateBody(z.object({ status: z.enum(['open', 'submitted', 'locked', 'cancelled']) })), async (req: AuthRequest, res, next) => {
   try {
     const updated = await transitionStatus(req.params.id, req.body.status, req.user!.userId, req.user!.role, req, req.user!.teacherId);
     res.json({ success: true, data: updated });
   } catch (e) { next(e); }
 });
 
-router.post('/sessions/:id/attendance', validateBody(z.object({
+router.post('/sessions/:id/attendance', requireRole('TEACHER', 'HOD', 'ADMIN', 'SUPER_ADMIN'), validateBody(z.object({
   records: z.array(z.object({
     studentId: z.string(),
     status: z.enum(['present', 'absent', 'late', 'excused', 'on_duty', 'medical']),
@@ -93,11 +101,13 @@ router.post('/sessions/:id/attendance', validateBody(z.object({
     if (!session) throw httpError(404, 'Session not found');
 
     // RBAC: teacher must own the session; HOD handled loosely (own dept = section scope skipped in MVP)
-    if (req.user!.role === 'TEACHER' && session.teacher_id !== req.user!.teacherId) {      throw httpError(403, 'Not your session');
+    if (req.user!.role === 'TEACHER' && session.teacher_id !== req.user!.teacherId) {
+      throw httpError(403, 'Not your session');
     }
 
     const editable = await canEditAttendance(session.session_id);
-    if (!editable && req.user!.role === 'TEACHER') {
+    // Admins may override a locked session; teachers/HOD must file a correction.
+    if (!editable && req.user!.role !== 'ADMIN' && req.user!.role !== 'SUPER_ADMIN') {
       throw httpError(423, 'Session locked — submit a correction instead');
     }
 
@@ -132,7 +142,7 @@ router.post('/sessions/:id/attendance', validateBody(z.object({
 });
 
 // ---- Attendance records ----
-router.get('/attendance/session/:sessionId', async (req: AuthRequest, res, next) => {
+router.get('/attendance/session/:sessionId', requireRole('TEACHER', 'HOD', 'ADMIN', 'SUPER_ADMIN'), async (req: AuthRequest, res, next) => {
   try {
     const rows = await prisma.attendance.findMany({
       where: { session_id: req.params.sessionId },
@@ -144,6 +154,7 @@ router.get('/attendance/session/:sessionId', async (req: AuthRequest, res, next)
 
 router.get('/students/:id/attendance', async (req: AuthRequest, res, next) => {
   try {
+    assertSelfOrStaff(req, req.params.id);
     const rows = await prisma.attendance.findMany({
       where: {
         student_id: req.params.id,
@@ -161,6 +172,7 @@ router.get('/students/:id/attendance', async (req: AuthRequest, res, next) => {
 
 router.get('/students/:id/attendance/summary', async (req: AuthRequest, res, next) => {
   try {
+    assertSelfOrStaff(req, req.params.id);
     const subjectId = req.query.subjectId as string | undefined;
     const summary = await computeStudentSummary(req.params.id, subjectId);
     const extra = condonation(summary);
@@ -179,7 +191,7 @@ router.post('/attendance/qr/generate', requireRole('TEACHER'), async (req: AuthR
 
 import { generateQR as qrGenerate, scanQR, revokeQR } from '../services/qr.service';
 
-router.post('/attendance/qr/scan', requireRole('STUDENT'), async (req: AuthRequest, res, next) => {
+router.post('/attendance/qr/scan', qrLimiter, requireRole('STUDENT'), async (req: AuthRequest, res, next) => {
   try {
     const { token, deviceId } = req.body as { token: string; deviceId?: string };
     if (!req.user!.studentId) throw httpError(403, 'Not a student profile');
@@ -190,17 +202,26 @@ router.post('/attendance/qr/scan', requireRole('STUDENT'), async (req: AuthReque
 
 router.put('/attendance/qr/:qrId/revoke', requireRole('TEACHER', 'HOD'), async (req: AuthRequest, res, next) => {
   try {
-    const updated = await revokeQR(req.params.qrId);
+    const updated = await revokeQR(req.params.qrId, req.user!.role === 'TEACHER' ? req.user!.teacherId : undefined);
     res.json({ success: true, data: updated });
   } catch (e) { next(e); }
 });
 
 // ---- Corrections ----
-router.post('/attendance/corrections', async (req: AuthRequest, res, next) => {
+router.post('/attendance/corrections', correctionLimiter, validateBody(z.object({
+  attendanceId: z.string().min(1),
+  requestedStatus: z.enum(['present', 'absent', 'late', 'excused', 'on_duty', 'medical']),
+  reason: z.string().min(3),
+})), async (req: AuthRequest, res, next) => {
   try {
     const { attendanceId, requestedStatus, reason } = req.body as { attendanceId: string; requestedStatus: string; reason: string };
     const att = await prisma.attendance.findUnique({ where: { attendance_id: attendanceId } });
     if (!att) throw httpError(404, 'Attendance record not found');
+
+    // A student may only request corrections on their OWN attendance rows.
+    if (req.user!.role === 'STUDENT' && att.student_id !== req.user!.studentId) {
+      throw httpError(403, 'Forbidden');
+    }
 
     const correction = await prisma.attendanceCorrection.create({
       data: {

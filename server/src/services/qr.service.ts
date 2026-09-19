@@ -4,7 +4,8 @@ import jwt from 'jsonwebtoken';
 import { prisma } from '../utils/prisma';
 import { httpError } from '../middleware/error.middleware';
 
-const QR_SECRET = process.env.JWT_SECRET || 'dev-secret';
+if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET not configured (required to sign QR tokens)');
+const QR_SECRET: string = process.env.JWT_SECRET;
 const QR_TTL_MIN = 5;
 
 function tokenHash(token: string): string {
@@ -94,9 +95,14 @@ export async function scanQR(token: string, studentId: string, deviceId?: string
   return { marked: true };
 }
 
-export async function revokeQR(qrId: string) {
-  const qr = await prisma.attendanceQRSession.findUnique({ where: { qr_id: qrId } });
+export async function revokeQR(qrId: string, teacherId?: string) {
+  const qr = await prisma.attendanceQRSession.findUnique({
+    where: { qr_id: qrId },
+    include: { session: { select: { teacher_id: true } } },
+  });
   if (!qr) throw httpError(404, 'QR not found');
+  // Teachers may only revoke QR codes belonging to their own sessions.
+  if (teacherId && qr.session?.teacher_id !== teacherId) throw httpError(403, 'Not your session');
   return prisma.attendanceQRSession.update({
     where: { qr_id: qrId },
     data: { revoked_at: new Date() },

@@ -42,6 +42,9 @@ router.post('/leave', requireRole('STUDENT'), validateBody(z.object({
 
 router.get('/leave/student/:id', async (req: AuthRequest, res, next) => {
   try {
+    if (req.user!.role === 'STUDENT' && req.user!.studentId !== req.params.id) {
+      throw httpError(403, 'Forbidden');
+    }
     const leaves = await prisma.leave.findMany({ where: { student_id: req.params.id }, orderBy: { created_at: 'desc' } });
     res.json({ success: true, data: leaves });
   } catch (e) { next(e); }

@@ -23,3 +23,11 @@ export const correctionLimiter = rateLimit({
   legacyHeaders: false,
   message: { success: false, error: 'Too many correction submissions' },
 });
+
+export const joinLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Too many join attempts, try later' },
+});

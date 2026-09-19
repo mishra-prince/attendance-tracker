@@ -20,7 +20,11 @@ app.use(helmet());
 app.use(cors({
   origin: (origin, cb) => {
     const allowed = [...(process.env.CLIENT_URL?.split(',') || []), 'http://localhost:5173', 'https://localhost', 'http://localhost', 'capacitor://localhost'];
-    if (!origin || allowed.includes(origin) || origin.endsWith('threshold.dpdns.org')) return cb(null, true);
+    // Match the host on a dot boundary so 'eviltthreshold.dpdns.org' can't slip through.
+    let host = '';
+    try { host = new URL(origin || '').hostname; } catch { /* non-URL origin */ }
+    const okSuffix = host === 'threshold.dpdns.org' || host.endsWith('.threshold.dpdns.org');
+    if (!origin || allowed.includes(origin) || okSuffix) return cb(null, true);
     return cb(null, false);
   },
   credentials: true,

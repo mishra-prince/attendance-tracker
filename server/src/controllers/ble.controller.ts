@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { prisma } from '../utils/prisma';
 import { authMiddleware, requireRole, AuthRequest } from '../middleware/auth.middleware';
 import { httpError } from '../middleware/error.middleware';
+import { qrLimiter } from '../middleware/rateLimit.middleware';
 import { audit } from '../services/audit.service';
 import { flagEnabled } from './features.controller';
 import { createHash, createHmac } from 'crypto';
@@ -9,8 +10,10 @@ import { createHash, createHmac } from 'crypto';
 const router = Router();
 router.use(authMiddleware);
 
-// Server-side session secret for beacon HMAC (env or generated once per process is NOT durable — use env in prod)
-const BEACON_SECRET = process.env.BLE_BEACON_SECRET || 'threshold-ble-secret-v1';
+// Server-side session secret for beacon HMAC. Must be configured — a known fallback
+// would let anyone forge valid rotating beacon IDs.
+if (!process.env.BLE_BEACON_SECRET) throw new Error('BLE_BEACON_SECRET not configured');
+const BEACON_SECRET: string = process.env.BLE_BEACON_SECRET;
 
 // Dwell rule: 55% of class duration, min 5 min
 function requiredMinutes(start: string, end: string): number {
@@ -98,7 +101,7 @@ router.get('/my-session', requireRole('TEACHER', 'HOD', 'ADMIN', 'SUPER_ADMIN'),
 });
 
 // POST /ble/scan  { beaconId, rssi }  (STUDENT) — records a sighting; server validates the beacon id
-router.post('/scan', requireRole('STUDENT'), async (req: AuthRequest, res, next) => {
+router.post('/scan', qrLimiter, requireRole('STUDENT'), async (req: AuthRequest, res, next) => {
   try {
     if (!(await flagEnabled('ble_auto_attendance'))) throw httpError(403, 'BLE auto-attendance feature is disabled');
     const { beaconId, rssi } = req.body as { beaconId?: string; rssi?: number };
@@ -174,6 +177,14 @@ async function finalizeSession(sessionId: string): Promise<{ present: number; lo
   if (!s) throw httpError(404, 'Session not found');
   if (s.status !== 'active') throw httpError(409, 'Session already finalized');
 
+  // Atomically claim this session so two concurrent finalizes can't both proceed.
+  // Only the caller whose flip actually changed a row (count === 1) continues.
+  const claim = await prisma.bleSession.updateMany({
+    where: { session_id: s.session_id, status: 'active' },
+    data: { status: 'finalized', finalized_at: new Date() },
+  });
+  if (claim.count === 0) throw httpError(409, 'Session already finalized');
+
   const enrolled = await prisma.enrollment.findMany({ where: { subject_id: s.subject_id, section_id: s.section_id, status: 'active' } });
   const teacherUser = await prisma.teacher.findUnique({ where: { teacher_id: s.teacher_id }, select: { user_id: true } });
   const byStudent = new Map<string, typeof s.blePings>();
@@ -216,6 +227,11 @@ async function finalizeSession(sessionId: string): Promise<{ present: number; lo
 
 router.post('/finalize/:sessionId', requireRole('TEACHER', 'HOD', 'ADMIN', 'SUPER_ADMIN'), async (req: AuthRequest, res, next) => {
   try {
+    // A teacher may only finalize their own BLE session.
+    if (req.user!.role === 'TEACHER') {
+      const owner = await prisma.bleSession.findUnique({ where: { session_id: req.params.sessionId }, select: { teacher_id: true } });
+      if (!owner || owner.teacher_id !== req.user!.teacherId) throw httpError(403, 'Not your session');
+    }
     res.json({ success: true, data: await finalizeSession(req.params.sessionId) });
   } catch (e) { next(e); }
 });
@@ -224,7 +240,7 @@ router.post('/finalize/:sessionId', requireRole('TEACHER', 'HOD', 'ADMIN', 'SUPE
 router.post('/auto-finalize', async (req: AuthRequest, res, next) => {
   try {
     // secured by secret header from watchdog
-    if (req.headers['x-internal-key'] !== (process.env.INTERNAL_JOB_KEY || 'threshold-internal')) throw httpError(403, 'forbidden');
+    if (!process.env.INTERNAL_JOB_KEY || req.headers['x-internal-key'] !== process.env.INTERNAL_JOB_KEY) throw httpError(403, 'forbidden');
     const active = await prisma.bleSession.findMany({ where: { status: 'active' } });
     const now = new Date();
     const done: any[] = [];

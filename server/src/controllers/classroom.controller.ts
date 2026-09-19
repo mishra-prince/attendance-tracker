@@ -1,7 +1,9 @@
 import { Router } from 'express';
+import { randomInt } from 'crypto';
 import { prisma } from '../utils/prisma';
 import { authMiddleware, requireRole, AuthRequest } from '../middleware/auth.middleware';
 import { httpError } from '../middleware/error.middleware';
+import { joinLimiter } from '../middleware/rateLimit.middleware';
 import { audit, auditFromReq } from '../services/audit.service';
 import { flagEnabled } from './features.controller';
 
@@ -12,7 +14,7 @@ function makeCode(): string {
   // 6-char unambiguous code (no 0/O/1/I)
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let c = '';
-  for (let i = 0; i < 6; i++) c += alphabet[Math.floor(Math.random() * alphabet.length)];
+  for (let i = 0; i < 6; i++) c += alphabet[randomInt(alphabet.length)];
   return c;
 }
 
@@ -61,7 +63,7 @@ router.get('/my-code', requireRole('TEACHER', 'HOD', 'ADMIN', 'SUPER_ADMIN'), as
 });
 
 // POST /classroom/join  { code }  (STUDENT) — enrolls student into the section's subjects for current semester
-router.post('/join', requireRole('STUDENT'), async (req: AuthRequest, res, next) => {
+router.post('/join', joinLimiter, requireRole('STUDENT'), async (req: AuthRequest, res, next) => {
   try {
     if (!(await flagEnabled('join_codes'))) throw httpError(403, 'Join codes feature is disabled');
     const { code } = req.body as { code?: string };
