@@ -110,6 +110,35 @@ Flag, don't auto-punish, on first implementation. Signals combined (not IP alone
 - Unusual request velocity
 `proxy-detection.service.ts` writes a flag to `AuditLog`/a review queue for HOD/Admin rather than silently blocking the student — avoids false-positive lockouts.
 
+## Integrity engine & root of trust
+
+The integrity layer is deliberately split into **independent signals** that are combined — never collapsed into a single verdict. The engine (`integrity.service.ts`) is pure/deterministic and unit-tested.
+
+### Root of Trust
+The institutional identity established at **initial supervised enrollment** is the root of trust. A student's biometric identity is bound to their institutional account by an authorized staff member through an institution-approved verification step (`enrollment.controller.ts`). Key rules:
+- Initial enrollment is a **root-of-trust event** — an authenticated API call or a remote selfie upload alone is NOT sufficient. It requires staff verification (`enrolled_by`) and a passing liveness check, and writes an `AuditLog` (`BIOMETRIC_ENROLLMENT`).
+- **Re-enrollment does not bypass initial trust.** A lost phone / reinstall / new device must use an authenticated recovery path with staff verification again; the old enrollment/device is revoked, `biometric_version` increments. A student can never silently replace their own template.
+- Enrollment lifecycle is tracked on `Student.enrollment_trust_state`: `UNENROLLED → PENDING_SUPERVISED_ENROLLMENT → ACTIVE`, plus `REVOKED` / `REQUIRES_REENROLLMENT`. A student not `ACTIVE` cannot use Mode B/C.
+- **A successful downstream verification cannot repair an incorrectly enrolled identity.**
+
+### Independent signals the engine consumes
+Account authentication · session validity · enrollment trust state · QR/session token · BLE presence · ESP32 anchor presence · dwell · face match · liveness · challenge result · device attestation · attestation history · device-capability/fallback state. These stay **separate** — e.g. `device_attestation_unavailable` + successful face/liveness + strong classroom presence + normal history must NOT produce a suspicious result.
+
+### Attestation is a signal, not guilt
+- `attestation_failed ≠ cheating`. Legitimate causes: unsupported device, outdated OS, Play Services limits, network failure, device config, manufacturer differences, temporary platform failure.
+- Non-passing attestation is handled by an institution-set `AttestationPolicy`: `ALLOW_WITH_LOWER_ASSURANCE` / `REQUIRE_ALTERNATIVE_VERIFICATION` / `TEACHER_REVIEW` — never an automatic guilt verdict.
+- Pattern analysis (`assessAttestationHistory`): a single failure = low significance; occasional failures = likely compatibility issue; repeated `unavailable`/`error` = compatibility signal (never risk); repeated **failures only elevate when combined with other independent anomalies**.
+- The engine emits `VERIFIED_PRESENT` / `REVIEW_REQUIRED` / `FALLBACK_REQUIRED` — never "cheated".
+
+### Device capability is not honesty
+Never build rules like "old Android → suspicious", "cheap phone → suspicious", "no attestation → dishonest". Device capability is a technical property. `deviceTier.service.ts` measures whether attestation/fallback requirements **disproportionately burden** particular device tiers (availability, failure, face-fail, fallback, teacher-review frequency, verification time, rejection rate, appeal rate) — a fairness instrument, not an integrity judgment. Socioeconomic characteristics are never inferred from device type. A student repeatedly hitting `REQUIRE_ALTERNATIVE_VERIFICATION` due to device limits gets a **stable fallback path** and is not continuously re-punished.
+
+### Assurance modes
+- **MODE_A** — no biometric requirement: account + QR + BLE + ESP32 + dwell.
+- **MODE_B** — MODE_A + active biometric enrollment + one randomized face/liveness verification.
+- **MODE_C** — institution's configured high-assurance identity process.
+Only institutional policy may determine fallback; a student cannot silently downgrade themselves from Mode B/C to Mode A.
+
 ## Notification service
 - Channels: `in_app`, `email`, `sms` (Twilio, optional)
 - Triggers: low attendance (via nightly `lowAttendanceAlert.job.ts`), leave approved/rejected, correction approved/rejected, admin announcements
@@ -127,6 +156,45 @@ Centralizes configurable rules so nothing is hardcoded:
 
 ## Error handling & validation
 Same as v1: centralized `error.middleware.ts`, consistent `{ success, data?, error? }` shape, Zod schemas per route in `validate.middleware.ts`, proper status codes (400/401/403/404/409/500).
+
+## Final architectural principle (integrity)
+
+```
+                    INSTITUTIONAL IDENTITY
+                           │
+                    Supervised enrollment
+                           │
+                           ▼
+                  Biometric identity root
+                           │
+              ┌────────────┴────────────┐
+              │                         │
+         Student account            Device
+              │                         │
+              ▼                         ▼
+         Session auth              Attestation
+              │                         │
+              └────────────┬────────────┘
+                           │
+                    Classroom evidence
+                           │
+                  BLE + ESP32 + dwell
+                           │
+                           ▼
+                 One live verification
+                           │
+                    Face + liveness
+                           │
+                           ▼
+                    Integrity Engine
+                           │
+              ┌────────────┼────────────┐
+              ▼            ▼            ▼
+          Verified       Review       Fallback
+          Present       Required      Required
+```
+
+The architecture must never be reduced to `face = identity`, `device = person`, or `attestation failure = cheating`. Its purpose is to combine independent evidence while staying low-cost, low-friction, privacy-conscious and fair across different devices.
 
 ## Security checklist (unchanged, reinforced)
 - bcrypt/argon2 hashing, JWT + refresh rotation, httpOnly cookies

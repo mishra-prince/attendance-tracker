@@ -5,9 +5,24 @@ Instructions for any AI coding agent (Claude Code, Cursor, Codex, etc.) building
 ## Related docs
 - `DESIGN.md` — visual design system, colors, typography, UX rules
 - `FRONTEND.md` — frontend architecture, folder structure, pages/components
-- `BACKEND.md` — backend architecture, auth, RBAC, attendance/session/QR/correction logic
+- `BACKEND.md` — backend architecture, auth, RBAC, attendance/session/QR/correction logic, integrity engine
 - `DATABASE.md` — schema and entity relationships (session-based, v2)
 - `API.md` — REST endpoint reference (v2)
+
+## Root of Trust (integrity architecture — read before touching enrollment/attestation)
+The institutional identity established during **initial, supervised** biometric enrollment is the **root of trust** for all biometric verification. These are separate, independent layers and must stay separate in code:
+
+1. **Account authentication** (who is logged in) — JWT.
+2. **Device attestation** (is the app/device untampered) — Play Integrity / App Attest.
+3. **Classroom presence** (is a device physically in the room) — BLE + ESP32 anchor + dwell.
+4. **Biometric verification** (is the live person the enrolled identity) — face + liveness.
+
+Non-negotiable principles enforced throughout the codebase:
+- **A successful downstream verification cannot repair an incorrectly enrolled identity.** Initial enrollment must be an institution-approved, staff-verified event — never a self-serve selfie upload.
+- **Device attestation is an integrity signal, not proof of student identity.**
+- **`attestation_failed ≠ cheating`.** A missing/failed/unavailable attestation is treated as a *signal*, weighed with other independent signals, governed by institution policy — never an automatic guilt verdict.
+- **Device limitations must not be interpreted as evidence of dishonesty.** Device capability is a technical property; never build rules like "old Android → suspicious".
+- The integrity engine (`integrity.service.ts`) **combines multiple independent signals**; no single signal is a verdict. It emits `VERIFIED_PRESENT` / `REVIEW_REQUIRED` / `FALLBACK_REQUIRED`, never "cheated".
 
 ## Project summary
 A full-stack college attendance tracker for five roles — Student, Teacher, HOD, Admin, Super Admin — with **session-based** attendance (not date-only), QR check-in, leave management, correction workflow, and configurable low-attendance alerts.
@@ -107,6 +122,14 @@ cd client && npm install && npm run dev
 - QR: valid, expired, revoked, duplicate scan, unauthorized student — all rejected correctly
 - Leave: create, approve, reject, invalid/overlapping dates
 - Permissions: verify every role cannot access resources outside its scope (not just outside its role)
+- **Integrity/enrollment** (`integrity.service.test.ts`, `deviceTier.service.test.ts`):
+  - Unauthorized initial enrollment (Student A account + Student B face, no supervision) → **rejected**
+  - Legitimate supervised enrollment → **active**
+  - Unauthorized re-enrollment (replace identity without recovery/verification) → **rejected**
+  - Unsupported device (attestation unavailable) + strong evidence → **configured fallback, NOT cheating**
+  - Repeated attestation failure alone → **risk signal recorded, not fraud**
+  - Repeated attestation failures + other independent anomalies → **higher-assurance / review path**
+  - Device-tier fairness: fallback/rejection rates compared across capability tiers
 
 ## Definition of done for any feature
 - Correct for all five roles as scoped

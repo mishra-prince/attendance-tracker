@@ -281,6 +281,52 @@ Audit logs are append-only — no update/delete endpoint exists for this table, 
 
 Attendance-rule toggles (whether `late`/`on_duty` count as present, whether `medical`/`excused` are excluded from the denominator, whether low attendance blocks exam eligibility) also live here as configurable keys, not constants in code.
 
+## Integrity architecture (root-of-trust, attestation, fairness)
+
+> These tables implement the integrity architecture. See BACKEND.md "Integrity engine" and the AGENTS.md "Root of Trust" section. Design rule: attestation is a *signal*, not proof of identity; device capability is never an integrity judgment.
+
+### Student — added column
+| Column | Type | Notes |
+|---|---|---|
+| enrollment_trust_state | enum | `UNENROLLED` / `PENDING_SUPERVISED_ENROLLMENT` / `ACTIVE` / `REVOKED` / `REQUIRES_REENROLLMENT` — default `UNENROLLED`. A student not `ACTIVE` cannot use Mode B/C biometric verification. |
+
+### BiometricEnrollment (new — explicit root-of-trust record, NOT a boolean on Student)
+| Column | Type | Notes |
+|---|---|---|
+| enrollment_id | UUID/PK | |
+| student_id | FK → Student | **unique** — one active enrollment per student |
+| enrollment_method | enum | `SUPERVISED_STAFF` / `INSTITUTIONAL_ID_CARD` / `REGISTRATION_RECORD` / `TRUSTED_IDENTITY_SYSTEM` / `BIOMETRIC_ENROLLMENT_STATION` — configurable institutional anchor |
+| enrolled_by | FK → User | the staff member who verified institutional identity |
+| device_id | text | nullable — supports multiple biometric representations/devices |
+| biometric_version | int | incremented on re-enrollment; do not assume one permanent template |
+| status | enum | `active` / `revoked` / `replaced` |
+| enrolled_at | timestamp | |
+| revoked_at | timestamp | nullable |
+| created_at / updated_at | timestamp | |
+
+Store only the **minimum required metadata**. Do NOT store raw enrollment photographs unless the selected implementation requires it. Initial enrollment is a supervised, institution-approved event — an authenticated API call or remote selfie upload alone is never sufficient. Every enrollment writes an `AuditLog` with action `BIOMETRIC_ENROLLMENT` (revocation → `BIOMETRIC_REVOCATION`); normal students can never modify these audit records.
+
+### DeviceIntegrityEvent (new — attestation telemetry; signals only)
+| Column | Type | Notes |
+|---|---|---|
+| event_id | UUID/PK | |
+| student_id | FK → Student | |
+| device_id | text | |
+| platform | text | e.g. android / ios |
+| attestation_type | enum | `PLAY_INTEGRITY` / `APP_ATTEST` / `NONE` |
+| result | enum | `passed` / `failed` / `unavailable` / `error` — `unavailable`/`error` are NOT failures of honesty |
+| reason_code | text | nullable |
+| session_id | text | nullable, links to the attendance attempt |
+| created_at | timestamp | |
+
+Only store what's needed to reason about attestation history; no unnecessary device telemetry.
+
+### New enums
+- `EnrollmentTrustState`, `BiometricEnrollmentStatus`, `EnrollmentMethod`, `AttestationResult`, `AttestationType`, `AttestationPolicy` (`ALLOW_WITH_LOWER_ASSURANCE` / `REQUIRE_ALTERNATIVE_VERIFICATION` / `TEACHER_REVIEW`), `AttendanceAssuranceMode` (`MODE_A` / `MODE_B` / `MODE_C`).
+- `AuditAction` extended with `BIOMETRIC_ENROLLMENT`, `BIOMETRIC_REVOCATION`.
+
+Device-tier **fairness** metrics (attestation availability/failure rates, face-verification failure, fallback frequency, teacher-review frequency, verification time, rejection rate, appeal rate — bucketed by device capability tier) are computed analytically in `deviceTier.service.ts`; they are a fairness instrument, not stored integrity judgments, and socioeconomic characteristics are never inferred from device type.
+
 ## Indexing
 - `Attendance(session_id, student_id)` — unique + primary lookup
 - `Attendance(student_id, session_id)` composite for history queries

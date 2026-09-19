@@ -56,6 +56,20 @@ Base URL: `/api`. Protected routes require `Authorization: Bearer <token>`. Resp
 | POST | `/attendance/qr/scan` | Student | Body: `{ token }` → runs full verification checklist, marks present |
 | PUT | `/attendance/qr/:qrId/revoke` | Teacher/HOD | Manually invalidate a live QR |
 
+## Biometric enrollment (root of trust)
+Initial enrollment binds a biometric identity to an institutional student account. It is a supervised, institution-approved event — an authenticated call or remote selfie upload alone is never sufficient. See BACKEND.md "Root of Trust".
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| POST | `/enrollment/biometric` | Teacher/HOD/Admin/Super Admin | Initial **supervised** enrollment. Body: `{ studentId, enrollmentMethod, deviceId?, livenessPassed }`. Records `enrolled_by`; sets `enrollment_trust_state = ACTIVE`; writes `BIOMETRIC_ENROLLMENT` audit. Rejects if an active enrollment already exists (use re-enroll). Students cannot self-enroll. |
+| POST | `/enrollment/biometric/reenroll` | Teacher/HOD/Admin/Super Admin | Authenticated recovery path (lost phone / new device). Re-verifies via staff, revokes the old device/template, increments `biometric_version`. A student cannot silently replace their own template. |
+| PUT | `/enrollment/biometric/:studentId/revoke` | HOD/Admin/Super Admin | Revoke enrollment → `enrollment_trust_state = REQUIRES_REENROLLMENT`; writes `BIOMETRIC_REVOCATION` audit. |
+| GET | `/enrollment/biometric/:studentId` | Self/Staff | Trust state + enrollment status/method/version. |
+
+Assurance modes: **MODE_A** (account + QR/BLE/ESP32/dwell, no biometric), **MODE_B** (MODE_A + active enrollment + one randomized face/liveness), **MODE_C** (institution high-assurance). A student not `ACTIVE` cannot use Mode B/C; only institution policy sets fallback — a student cannot silently downgrade to Mode A.
+
+Device attestation is submitted as an integrity **signal** (stored as `DeviceIntegrityEvent`), never as proof of identity. A missing/failed/unavailable attestation is handled by the institution's `AttestationPolicy` (`ALLOW_WITH_LOWER_ASSURANCE` / `REQUIRE_ALTERNATIVE_VERIFICATION` / `TEACHER_REVIEW`) — never an automatic rejection. Engine outcomes are `VERIFIED_PRESENT` / `REVIEW_REQUIRED` / `FALLBACK_REQUIRED`.
+
 ## Attendance corrections (new)
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
@@ -110,3 +124,5 @@ Base URL: `/api`. Protected routes require `Authorization: Bearer <token>`. Resp
 | 409 | Conflict (duplicate attendance, overlapping timetable, overlapping leave) |
 | 423 | Locked (session locked — use corrections endpoint) |
 | 500 | Server error |
+
+Note: an integrity `FALLBACK_REQUIRED` or `REVIEW_REQUIRED` outcome is **not** an error status — it is a normal 200 response carrying the outcome, so unsupported-device students are routed to a fallback rather than being rejected as if they cheated.

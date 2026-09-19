@@ -98,6 +98,63 @@ enum AuditAction {
   REJECT
   LOCK
   BLE_FINALIZE
+  BIOMETRIC_ENROLLMENT
+  BIOMETRIC_REVOCATION
+}
+
+// --- Integrity architecture (Threshold FINAL INTEGRITY ARCHITECTURE PATCH) ---
+
+// Root-of-trust lifecycle for a student's biometric identity.
+enum EnrollmentTrustState {
+  UNENROLLED
+  PENDING_SUPERVISED_ENROLLMENT
+  ACTIVE
+  REVOKED
+  REQUIRES_REENROLLMENT
+}
+
+// Status of a single BiometricEnrollment record.
+enum BiometricEnrollmentStatus {
+  active
+  revoked
+  replaced
+}
+
+// How institutional identity was anchored at enrollment time. Configurable.
+enum EnrollmentMethod {
+  SUPERVISED_STAFF
+  INSTITUTIONAL_ID_CARD
+  REGISTRATION_RECORD
+  TRUSTED_IDENTITY_SYSTEM
+  BIOMETRIC_ENROLLMENT_STATION
+}
+
+// Device attestation outcome. `unavailable`/`error` are NOT failures of honesty.
+enum AttestationResult {
+  passed
+  failed
+  unavailable
+  error
+}
+
+enum AttestationType {
+  PLAY_INTEGRITY
+  APP_ATTEST
+  NONE
+}
+
+// Policy applied when attestation cannot pass. Institution-configured, never client-chosen.
+enum AttestationPolicy {
+  ALLOW_WITH_LOWER_ASSURANCE
+  REQUIRE_ALTERNATIVE_VERIFICATION
+  TEACHER_REVIEW
+}
+
+// Attendance assurance mode. Downgrade is institution-policy-only.
+enum AttendanceAssuranceMode {
+  MODE_A
+  MODE_B
+  MODE_C
 }
 
 model User {
@@ -120,6 +177,7 @@ model User {
   auditLogs AuditLog[]      @relation("ChangedBy")
   settings  Settings[]      @relation("UpdatedBy")
   notifications Notification[] @relation("UserNotifications")
+  biometricEnrollmentsVerified BiometricEnrollment[] @relation("BiometricEnrolledBy")
 }
 
 model Department {
@@ -243,6 +301,9 @@ model Student {
   created_at   DateTime @default(now())
   updated_at   DateTime @updatedAt
 
+  // Enrollment trust state — the root-of-trust gate for Mode B/C biometric verification.
+  enrollment_trust_state EnrollmentTrustState @default(UNENROLLED)
+
   user        User     @relation("UserStudent", fields: [user_id], references: [user_id])
   course      Course   @relation(fields: [course_id], references: [course_id])
   blePings    BlePing[]
@@ -252,6 +313,8 @@ model Student {
   attendance  Attendance[]
   leaves      Leave[]
   notifications Notification[]
+  biometricEnrollment BiometricEnrollment?
+  deviceIntegrityEvents DeviceIntegrityEvent[]
 }
 
 model Teacher {
@@ -502,4 +565,45 @@ model AnchorSighting {
   seen_at    DateTime @default(now())
   student    Student  @relation(fields: [student_id], references: [student_id])
   @@index([student_id, seen_at])
+}
+
+// --- Integrity architecture models ---
+
+// Explicit root-of-trust record. One active enrollment per student; supervised/institution-anchored.
+// Stores only minimum metadata — never raw enrollment photos unless the chosen implementation requires it.
+model BiometricEnrollment {
+  enrollment_id     String   @id @default(uuid())
+  student_id        String   @unique
+  enrollment_method EnrollmentMethod
+  enrolled_by       String   // User (staff) who verified institutional identity
+  device_id         String?
+  biometric_version Int      @default(1)
+  status            BiometricEnrollmentStatus @default(active)
+  enrolled_at       DateTime @default(now())
+  revoked_at        DateTime?
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  student       Student @relation(fields: [student_id], references: [student_id])
+  enrolledByUser User   @relation("BiometricEnrolledBy", fields: [enrolled_by], references: [user_id])
+
+  @@index([status])
+}
+
+// Device attestation / integrity telemetry. Signals only — never an automatic guilt verdict.
+model DeviceIntegrityEvent {
+  event_id        String   @id @default(uuid())
+  student_id      String
+  device_id       String
+  platform        String   // e.g. android / ios
+  attestation_type AttestationType
+  result          AttestationResult
+  reason_code     String?
+  session_id      String?
+  created_at      DateTime @default(now())
+
+  student Student @relation(fields: [student_id], references: [student_id])
+
+  @@index([student_id, created_at])
+  @@index([device_id, created_at])
 }

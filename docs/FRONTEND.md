@@ -99,6 +99,24 @@ All non-auth routes wrapped in `<ProtectedRoute allowedRoles={[...]}>`; pages ad
 - Form-driven, not free text — toggles for "late counts as present," "on_duty counts as present," numeric input for minimum %, all writing to `/settings/:key`
 - Changing a setting shows a confirmation ("this affects all future percentage calculations")
 
+## Integrity & biometric enrollment (frontend/mobile)
+
+The mobile app participates in the integrity architecture (see BACKEND.md "Integrity engine" and AGENTS.md "Root of Trust"). Frontend rules:
+
+- **No self-enrollment UI.** Students never create their own biometric identity. Initial enrollment happens at a **supervised station** operated by staff (`SupervisedEnrollment.tsx` under `/staff` or `/admin`), which captures a live face + liveness and posts to `/enrollment/biometric` with the staff member as `enrolled_by`. The student app only *shows* enrollment trust state (`UNENROLLED` / `PENDING_SUPERVISED_ENROLLMENT` / `ACTIVE` / `REVOKED` / `REQUIRES_REENROLLMENT`), never a "upload your selfie to enroll" flow.
+- **Assurance mode is server-driven.** The client renders whatever the server requires for a session (Mode A = QR/BLE/dwell only; Mode B = one randomized face/liveness prompt; Mode C = institutional flow). The client must **never** let a user silently downgrade Mode B/C to Mode A — the mode comes from server policy, not a client toggle.
+- **Device attestation is collected, not judged, on-device.** The app submits a Play Integrity / App Attest token as a *signal*. If attestation is unavailable/failed (old OS, no Play Services, manufacturer quirk), the app must **not** show accusatory copy. It shows a neutral state and follows the server's returned outcome:
+  - `VERIFIED_PRESENT` → normal success.
+  - `REVIEW_REQUIRED` → "sent for teacher review" (calm, non-accusatory).
+  - `FALLBACK_REQUIRED` → route to the **stable fallback verification** screen. A student on an unsupported device must reach fallback without repeatedly having to prove their device is unsupported.
+- **Never surface device capability as suspicion.** No UI copy like "your device looks insecure". Device limits are a technical state, not a dishonesty flag.
+- **Enrollment/attestation errors** use the same neutral error+retry pattern below; a failed attestation is not an error state, it's an outcome the server resolves.
+
+Suggested components/pages:
+- `/staff/enrollment` → `SupervisedEnrollment.tsx` (staff-operated capture + liveness + institutional identity confirm)
+- student `EnrollmentStatusCard` (read-only trust state; prompts "visit the enrollment desk" when `UNENROLLED`/`REQUIRES_REENROLLMENT`)
+- `LivenessPrompt` (the single randomized Mode B check) and `FallbackVerification` (alternative path)
+
 ## Error & loading states (required on every data-fetching page)
 Skeleton loader → content, explicit empty state, error state with retry — never a blank screen.
 

@@ -10,6 +10,7 @@ import featuresRoutes from './controllers/features.controller';
 import aiRoutes from './controllers/ai.controller';
 import classroomRoutes from './controllers/classroom.controller';
 import bleRoutes from './controllers/ble.controller';
+import enrollmentRoutes from './controllers/enrollment.controller';
 import { errorMiddleware } from './middleware/error.middleware';
 
 const app = express();
@@ -42,6 +43,7 @@ app.use('/api', featuresRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/classroom', classroomRoutes);
 app.use('/api/ble', bleRoutes);
+app.use('/api/enrollment', enrollmentRoutes);
 
 app.use(errorMiddleware);
 
