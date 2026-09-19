@@ -66,23 +66,30 @@ export async function scanQR(token: string, studentId: string, deviceId?: string
   });
   if (!enrollment) throw fail();
 
-  // 7. no existing attendance row (unique constraint as defense in depth)
+  // 7. no existing attendance row (fast path). The unique constraint below is the
+  //    real guard against concurrent double-scans — the check alone is racy.
   const existing = await prisma.attendance.findUnique({
     where: { session_id_student_id: { session_id: session.session_id, student_id: studentId } },
   });
   if (existing) throw fail();
 
-  // find the student's User row to record marked_by as the student themselves
-  const marked = await prisma.attendance.create({
-    data: {
-      session_id: session.session_id,
-      student_id: studentId,
-      status: 'present',
-      marked_by: student.user_id,
-      method: 'QR',
-      device_id: deviceId,
-    },
-  });
+  // Atomic insert. A concurrent scan that beats us hits the unique constraint (P2002);
+  // treat that as "already checked in" via the same generic error, never a 500.
+  try {
+    await prisma.attendance.create({
+      data: {
+        session_id: session.session_id,
+        student_id: studentId,
+        status: 'present',
+        marked_by: student.user_id,
+        method: 'QR',
+        device_id: deviceId,
+      },
+    });
+  } catch (e: any) {
+    if (e?.code === 'P2002') throw fail();
+    throw e;
+  }
 
   return { marked: true };
 }

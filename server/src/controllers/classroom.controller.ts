@@ -83,19 +83,23 @@ router.post('/join', requireRole('STUDENT'), async (req: AuthRequest, res, next)
       where: semester ? { semester_id: semester.semester_id, course_id: section.course_id } : { course_id: section.course_id },
     });
 
-    // Move student into section + enroll into section subjects (skip existing)
-    await prisma.student.update({ where: { student_id: student.student_id }, data: { section_id: section.section_id } });
-    let enrolled = 0;
-    for (const subj of subjects) {
-      const exists = await prisma.enrollment.findFirst({ where: { student_id: student.student_id, subject_id: subj.subject_id } });
-      if (!exists) {
-        await prisma.enrollment.create({ data: {
-          student_id: student.student_id, subject_id: subj.subject_id,
-          semester_id: subj.semester_id, section_id: section.section_id,
-        } });
-        enrolled++;
+    // Move student into section + enroll into section subjects (skip existing).
+    // Atomic: the section move and all enrollments commit together, or nothing does.
+    const enrolled = await prisma.$transaction(async (tx) => {
+      await tx.student.update({ where: { student_id: student.student_id }, data: { section_id: section.section_id } });
+      let count = 0;
+      for (const subj of subjects) {
+        const exists = await tx.enrollment.findFirst({ where: { student_id: student.student_id, subject_id: subj.subject_id } });
+        if (!exists) {
+          await tx.enrollment.create({ data: {
+            student_id: student.student_id, subject_id: subj.subject_id,
+            semester_id: subj.semester_id, section_id: section.section_id,
+          } });
+          count++;
+        }
       }
-    }
+      return count;
+    });
     await audit({ tableName: 'Enrollment', recordId: student.student_id, action: 'CREATE', changedBy: req.user!.userId, newValue: { via: 'join_code', section: section.section_id, enrolled }, ...auditFromReq(req) });
     res.json({ success: true, data: { joined: section.section_name, enrolled } });
   } catch (e) { next(e); }

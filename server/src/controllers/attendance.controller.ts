@@ -101,30 +101,22 @@ router.post('/sessions/:id/attendance', validateBody(z.object({
       throw httpError(423, 'Session locked — submit a correction instead');
     }
 
-    const results = [];
-    for (const rec of req.body.records) {
-      const existing = await prisma.attendance.findUnique({
-        where: { session_id_student_id: { session_id: session.session_id, student_id: rec.studentId } },
-      });
-      if (existing) {
-        const updated = await prisma.attendance.update({
-          where: { attendance_id: existing.attendance_id },
-          data: { status: rec.status, marked_by: req.user!.userId, method: 'manual', marked_at: new Date() },
-        });
-        results.push(updated);
-      } else {
-        const created = await prisma.attendance.create({
-          data: {
+    // Atomic: all records land together or none do (no partial marking on mid-loop failure).
+    const results = await prisma.$transaction(
+      req.body.records.map((rec: { studentId: string; status: string }) =>
+        prisma.attendance.upsert({
+          where: { session_id_student_id: { session_id: session.session_id, student_id: rec.studentId } },
+          update: { status: rec.status as any, marked_by: req.user!.userId, method: 'manual', marked_at: new Date() },
+          create: {
             session_id: session.session_id,
             student_id: rec.studentId,
-            status: rec.status,
+            status: rec.status as any,
             marked_by: req.user!.userId,
             method: 'manual',
           },
-        });
-        results.push(created);
-      }
-    }
+        })
+      )
+    );
 
     await audit({
       tableName: 'Attendance',
