@@ -5,12 +5,35 @@ import { useAuth } from '../../store/auth';
 
 type Row = Record<string, string>;
 
+// Splits a CSV line honoring double-quoted fields (so "Rao, S." stays one cell)
+// and "" escaped quotes. Good enough for the admin bulk-import format.
+function splitCSVLine(line: string): string[] {
+  const out: string[] = [];
+  let cur = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') { cur += '"'; i++; }
+        else inQuotes = false;
+      } else cur += ch;
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === ',') {
+      out.push(cur); cur = '';
+    } else cur += ch;
+  }
+  out.push(cur);
+  return out.map((c) => c.trim());
+}
+
 function parseCSV(text: string): Row[] {
   const lines = text.trim().split(/\r?\n/);
   if (lines.length < 2) return [];
-  const headers = lines[0].split(',').map((h) => h.trim());
+  const headers = splitCSVLine(lines[0]);
   return lines.slice(1).filter((l) => l.trim()).map((l) => {
-    const cells = l.split(',').map((c) => c.trim());
+    const cells = splitCSVLine(l);
     const row: Row = {};
     headers.forEach((h, i) => { row[h] = cells[i] ?? ''; });
     return row;
@@ -99,7 +122,7 @@ export default function AdminPage() {
       {/* Minimum attendance setting */}
       <div className="glass-medium rounded-2xl p-5 flex flex-col gap-3 w-full max-w-sm">
         <div className="font-medium">Minimum attendance %</div>
-        <input className="input" type="number" min={0} max={100} value={minPct} onChange={(e) => setMinPct(Number(e.target.value))} />
+        <input className="input" type="number" min={0} max={100} value={minPct} onChange={(e) => { const v = e.target.value; if (v !== '') setMinPct(Math.max(0, Math.min(100, Number(v)))); }} />
         <button className="btn-primary w-fit" onClick={saveSetting}>Save</button>
       </div>
 

@@ -16,10 +16,13 @@ export default function CondonationApply() {
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
   const [applied, setApplied] = useState(false);
+  const [loadErr, setLoadErr] = useState('');
 
   useEffect(() => {
     if (!user.studentId) return;
-    api.get(`/students/${user.studentId}/attendance/summary`).then(r => setSummary(r.data.data)).catch(() => {});
+    api.get(`/students/${user.studentId}/attendance/summary`)
+      .then(r => setSummary(r.data.data))
+      .catch(() => setLoadErr('Could not load your attendance status.'));
   }, [user.studentId]);
 
   const min = summary?.rules.minimum_attendance_percentage ?? 75;
@@ -45,8 +48,10 @@ export default function CondonationApply() {
     }
   }
 
+  if (loadErr) return <div role="alert" className="text-signal p-6">{loadErr}</div>;
   if (!summary) return <PageSkeleton />;
   const neededSafe = needed ?? 0;
+  const canMissSafe = canMiss ?? 0;
 
   return (
     <div className="p-6 flex flex-col gap-6">
@@ -65,7 +70,7 @@ export default function CondonationApply() {
           </span>
           ) : (
             <span className="text-emerald-300">
-              You are above the minimum — you can still miss {canMiss} more class{canMiss === 1 ? '' : 'es'}. No condonation needed.
+              You are above the minimum — you can still miss {canMissSafe} more class{canMissSafe === 1 ? '' : 'es'}. No condonation needed.
             </span>
           )}
         </div>

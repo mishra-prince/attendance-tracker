@@ -9,7 +9,7 @@ import { CardSkeleton, Skeleton } from '../../components/skeletons';
 // Consistent per-subject color mapping — same subject, same color in every chart
 const PALETTE = ['#7170ff', '#ff453a', '#fbbf24', '#34d399', '#c084fc', '#38bdf8', '#fb923c'];
 
-interface SubjectRow { subject_name: string; subject_code: string; percentage: number; }
+interface SubjectRow { subject_name: string; subject_code: string; percentage: number | null; }
 interface Summary {
   overall: { percentage: number | null; eligible_sessions: number; counted_present: number };
   subjects: SubjectRow[];
@@ -30,18 +30,19 @@ export default function StudentAnalytics() {
   const [rows, setRows] = useState<SubjectRow[]>([]);
   const [overall, setOverall] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState('');
 
   useEffect(() => {
     if (!user.studentId) return;
     api.get(`/students/${user.studentId}/attendance/summary`).then(r => {
       setRows(r.data.data.subjects ?? []);
       setOverall(r.data.data.overall?.percentage ?? null);
-    }).catch(() => {}).finally(() => setLoading(false));
+    }).catch(() => setErr('Could not load analytics.')).finally(() => setLoading(false));
   }, [user.studentId]);
 
   const codeColor = new Map(rows.map((r, i) => [r.subject_code, PALETTE[i % PALETTE.length]]));
-  const pieData = rows.map(r => ({ name: r.subject_code, value: Math.round(r.percentage) }));
-  const barData = rows.map(r => ({ name: r.subject_code, pct: Math.round(r.percentage) }));
+  const pieData = rows.map(r => ({ name: r.subject_code, value: Math.round(r.percentage ?? 0) }));
+  const barData = rows.map(r => ({ name: r.subject_code, pct: Math.round(r.percentage ?? 0) }));
 
   return (
     <Page className="p-4 pt-6 space-y-5" >
@@ -51,6 +52,10 @@ export default function StudentAnalytics() {
           <CardSkeleton h="h-32" />
           <CardSkeleton h="h-48" />
         </>
+      )}
+      {!loading && err && <div role="alert" className="text-signal text-sm">{err}</div>}
+      {!loading && !err && overall === null && (
+        <div className="glass-medium rounded-2xl p-6 text-center text-muted">No attendance data yet</div>
       )}
       {overall !== null && (
         <Stagger>
@@ -102,7 +107,7 @@ export default function StudentAnalytics() {
                   {rows.map((r) => (
                     <span key={r.subject_code} className="inline-flex items-center gap-1.5 text-xs text-ash">
                       <span className="w-2.5 h-2.5 rounded-full" style={{ background: codeColor.get(r.subject_code) }} />
-                      {r.subject_code} · {Math.round(r.percentage)}%
+                      {r.subject_code} · {Math.round(r.percentage ?? 0)}%
                     </span>
                   ))}
                 </div>

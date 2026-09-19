@@ -14,7 +14,7 @@ const tabs = [
 export default function StudentLayout() {
   const location = useLocation();
   return (
-    <div className="min-h-full pb-28">
+    <div className="min-h-full" style={{ paddingBottom: 'calc(7rem + env(safe-area-inset-bottom))' }}>
       <AnimatePresence mode="wait" initial={false}>
         <motion.div
           key={location.pathname}

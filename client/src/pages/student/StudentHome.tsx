@@ -7,9 +7,9 @@ import { useAuth } from '../../store/auth';
 import { Stagger, StaggerItem, Pressable, spring } from '../../components/motion';
 
 interface Summary {
-  overall: { percentage: number; eligible_sessions: number; counted_present: number };
-  subjects: { subject_code: string; subject_name: string; percentage: number }[];
-  condonation: { classes_can_still_miss: number };
+  overall: { percentage: number | null; eligible_sessions: number; counted_present: number };
+  subjects: { subject_code: string; subject_name: string; percentage: number | null }[];
+  condonation: { classes_can_still_miss: number | null };
 }
 
 export default function StudentHome() {
@@ -35,8 +35,9 @@ export default function StudentHome() {
       </div>
     );
 
-  const pct = Math.round(data.overall.percentage);
-  const pctColor = pct >= 75 ? 'text-bone' : 'text-signal';
+  const pct = data.overall.percentage == null ? 0 : Math.round(data.overall.percentage);
+  const hasData = data.overall.percentage != null;
+  const pctColor = !hasData || pct >= 75 ? 'text-bone' : 'text-signal';
 
   return (
     <Stagger className="p-6 flex flex-col gap-6">
@@ -54,13 +55,13 @@ export default function StudentHome() {
         <div className={`display-numeral ${pctColor}`}>{pct}<span className="text-3xl text-ash">%</span></div>
         <div className="text-ash text-sm mt-2">
           {data.overall.counted_present}/{data.overall.eligible_sessions} classes · you can still miss{' '}
-          <span className="text-signal font-medium">{data.condonation.classes_can_still_miss}</span>
+          <span className="text-signal font-medium">{data.condonation.classes_can_still_miss ?? 0}</span>
         </div>
       </StaggerItem>
 
       <div className="grid gap-3">
-        {data.subjects.map((s, i) => {
-          const ok = s.percentage >= 75;
+        {(data.subjects ?? []).map((s) => {
+          const ok = s.percentage == null || s.percentage >= 75;
           return (
             <StaggerItem key={s.subject_code} className="glass-medium rounded-xl px-4 py-3 flex items-center justify-between card-lift">
               <div>
@@ -68,7 +69,7 @@ export default function StudentHome() {
                 <div className="text-muted text-xs">{s.subject_code}</div>
               </div>
               <span className={`badge ${ok ? 'badge-present' : 'badge-absent'}`}>
-                {Math.round(s.percentage)}%
+                {s.percentage == null ? '—' : `${Math.round(s.percentage)}%`}
               </span>
             </StaggerItem>
           );

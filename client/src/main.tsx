@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { App as CapApp } from '@capacitor/app';
@@ -41,18 +41,23 @@ function Home() {
 function BackHandler() {
   const nav = useNavigate();
   const loc = useLocation();
+  // Keep current location in a ref so the single listener always sees fresh values
+  // without re-registering (re-registering on every nav stacks listeners → over-pops).
+  const locRef = useRef(loc);
+  locRef.current = loc;
   useEffect(() => {
+    let handle: { remove: () => void } | undefined;
     CapApp.addListener('backButton', ({ canGoBack }) => {
       if (canGoBack) {
         nav(-1);
-      } else if (loc.pathname !== '/') {
+      } else if (locRef.current.pathname !== '/') {
         nav('/', { replace: true });
       } else {
         CapApp.exitApp();
       }
-    });
-    return () => { CapApp.removeAllListeners(); };
-  }, [loc.pathname]);
+    }).then((h) => { handle = h; });
+    return () => { handle?.remove(); };
+  }, []); // register exactly once
   return null;
 }
 

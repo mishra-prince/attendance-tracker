@@ -16,16 +16,21 @@ export default function StudentSessions() {
   const user = useAuth((s) => s.user)!;
   const [rows, setRows] = useState<Att[]>([]);
   const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState('');
 
   useEffect(() => {
     if (!user.studentId) return;
-    api.get(`/students/${user.studentId}/attendance`).then((r) => setRows(r.data.data))
+    api.get(`/students/${user.studentId}/attendance`)
+      .then((r) => setRows(r.data.data ?? []))
+      .catch(() => setErr('Failed to load your attendance.'))
       .finally(() => setLoading(false));
   }, [user.studentId]);
 
   return (
     <div className="p-6 flex flex-col gap-3">
       <div className="text-bone text-lg font-semibold">My attendance</div>
+      {loading && <><RowSkeleton /><RowSkeleton /><RowSkeleton /></>}
+      {err && <div role="alert" className="text-signal text-sm">{err}</div>}
       {rows.map((a) => (
         <div key={a.attendance_id} className="glass-medium rounded-xl px-4 py-3 flex items-center justify-between">
           <div>
@@ -37,7 +42,7 @@ export default function StudentSessions() {
           <span className={`badge ${badge(a.status)}`}>{a.status}</span>
         </div>
       ))}
-      {!rows.length && <div className="text-ash">No records yet.</div>}
+      {!loading && !err && !rows.length && <div className="text-ash">No records yet.</div>}
     </div>
   );
 }

@@ -9,32 +9,49 @@ export const API_BASE = IS_NATIVE
 
 export const api = axios.create({ baseURL: `${API_BASE}/api` });
 
-api.interceptors.request.use((cfg) => {
-  const raw = localStorage.getItem('auth');
-  if (raw) {
-    const { accessToken } = JSON.parse(raw);
-    if (accessToken) cfg.headers.Authorization = `Bearer ${accessToken}`;
+function readAuth(): { accessToken?: string; refreshToken?: string } | null {
+  try {
+    const raw = localStorage.getItem('auth');
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null; // corrupt storage must not break every request
   }
+}
+
+api.interceptors.request.use((cfg) => {
+  const auth = readAuth();
+  if (auth?.accessToken) cfg.headers.Authorization = `Bearer ${auth.accessToken}`;
   return cfg;
 });
+
+// Single in-flight refresh shared across all concurrent 401s (avoids a refresh stampede
+// that, with refresh-token rotation, logs the user out mid-session).
+let refreshing: Promise<string> | null = null;
+
+async function doRefresh(): Promise<string> {
+  const auth = readAuth();
+  const res = await axios.post(`${API_BASE}/api/auth/refresh`, { refreshToken: auth?.refreshToken });
+  const token = res.data.data.accessToken;
+  const next = { ...(auth ?? {}), accessToken: token };
+  localStorage.setItem('auth', JSON.stringify(next));
+  return token;
+}
 
 api.interceptors.response.use(
   (r) => r,
   async (err) => {
     const original = err.config;
-    if (err.response?.status === 401 && !original._retry) {
+    if (err.response?.status === 401 && original && !original._retry) {
       original._retry = true;
       try {
-        const raw = localStorage.getItem('auth');
-        if (!raw) throw new Error('no auth');
-        const { refreshToken } = JSON.parse(raw);
-        const res = await axios.post(`${API_BASE}/api/auth/refresh`, { refreshToken });
-        const auth = JSON.parse(raw);
-        auth.accessToken = res.data.data.accessToken;
-        localStorage.setItem('auth', JSON.stringify(auth));
-        original.headers.Authorization = `Bearer ${auth.accessToken}`;
+        refreshing = refreshing ?? doRefresh();
+        const token = await refreshing;
+        refreshing = null;
+        original.headers = original.headers ?? {};
+        original.headers.Authorization = `Bearer ${token}`;
         return api(original);
       } catch {
+        refreshing = null;
         localStorage.removeItem('auth');
         window.location.href = '/login';
       }

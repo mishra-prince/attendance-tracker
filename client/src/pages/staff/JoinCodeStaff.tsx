@@ -1,7 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api, errMsg } from '../../lib/api';
 import { Page } from '../../components/motion';
-import { CardSkeleton } from '../../components/skeletons';
 
 export default function JoinCodeStaff() {
   const [sectionId, setSectionId] = useState('');
@@ -10,7 +9,9 @@ export default function JoinCodeStaff() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
 
-  useState(() => { api.get('/catalog/sections').then((r) => setSections(r.data.data)).catch(() => {}); });
+  useEffect(() => {
+    api.get('/catalog/sections').then((r) => setSections(r.data.data ?? [])).catch(() => setMsg('Failed to load sections.'));
+  }, []);
 
   async function generate() {
     if (!sectionId) return;

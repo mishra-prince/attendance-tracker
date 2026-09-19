@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, errMsg } from '../../lib/api';
 import { Page } from '../../components/motion';
 import { CardSkeleton } from '../../components/skeletons';
@@ -16,12 +16,28 @@ export default function TimetableAnalyzer() {
   const [sections, setSections] = useState<{ section_id: string; section_name: string }[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  useState(() => { api.get('/catalog/sections').then((r) => setSections(r.data.data)).catch(() => {}); });
+  useEffect(() => {
+    api.get('/catalog/sections').then((r) => setSections(r.data.data ?? [])).catch(() => setMsg('⚠ Failed to load sections.'));
+  }, []);
 
   async function pick(f: File | undefined) {
     if (!f || !sectionId) return;
+    if (!f.type.startsWith('image/')) { setMsg('⚠ Please choose an image file.'); return; }
+    if (f.size > 8 * 1024 * 1024) { setMsg('⚠ Image too large (max 8 MB).'); return; }
     setBusy(true); setMsg('Reading timetable with AI…'); setPreview(null);
-    const b64 = await new Promise<string>((res) => { const r = new FileReader(); r.onload = () => res(r.result as string); r.readAsDataURL(f); });
+    let b64: string;
+    try {
+      b64 = await new Promise<string>((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result as string);
+        r.onerror = () => rej(r.error ?? new Error('read failed'));
+        r.readAsDataURL(f);
+      });
+    } catch {
+      setMsg('⚠ Could not read that image. Try another photo.');
+      setBusy(false);
+      return;
+    }
     setImgUrl(b64);
     try {
       const m = b64.match(/^data:(image\/[\w+]+);base64,(.*)$/);
