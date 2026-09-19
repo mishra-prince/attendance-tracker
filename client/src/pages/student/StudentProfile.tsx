@@ -5,16 +5,20 @@ import { useAuth } from '../../store/auth';
 export default function StudentProfile() {
   const user = useAuth((s) => s.user)!;
   const logout = useAuth((s) => s.logout);
+  const today = new Date().toISOString().slice(0, 10);
   const [reason, setReason] = useState('');
+  const [fromDate, setFromDate] = useState(today);
+  const [toDate, setToDate] = useState(today);
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
 
   async function applyLeave(e: React.FormEvent) {
     e.preventDefault();
+    if (new Date(toDate) < new Date(fromDate)) { setMsg('End date cannot be before start date'); return; }
     setBusy(true);
     setMsg('');
     try {
-      await api.post('/leave', { reason, fromDate: new Date().toISOString().slice(0, 10), toDate: new Date().toISOString().slice(0, 10) });
+      await api.post('/leave', { reason, fromDate, toDate });
       setMsg('✓ Leave request submitted');
       setReason('');
     } catch (e) {
@@ -38,6 +42,14 @@ export default function StudentProfile() {
 
       <form onSubmit={applyLeave} className="glass-medium rounded-2xl p-6 flex flex-col gap-4">
         <div className="font-medium">Apply for leave</div>
+        <div className="flex gap-3">
+          <label className="flex-1 text-ash text-xs">From
+            <input type="date" className="input mt-1" value={fromDate} min={today} onChange={(e) => setFromDate(e.target.value)} required />
+          </label>
+          <label className="flex-1 text-ash text-xs">To
+            <input type="date" className="input mt-1" value={toDate} min={fromDate} onChange={(e) => setToDate(e.target.value)} required />
+          </label>
+        </div>
         <textarea className="input min-h-24" placeholder="Reason…" value={reason} onChange={(e) => setReason(e.target.value)} required />
         <button className="btn-primary" disabled={busy}>{busy ? 'Submitting…' : 'Submit request'}</button>
         {msg && <div className="text-sm text-ash">{msg}</div>}

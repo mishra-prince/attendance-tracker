@@ -100,4 +100,20 @@ export async function finalizeBle(sessionId: string): Promise<{ present: number;
   return r.data.data;
 }
 
+// ---- Timetable + quick session start ----
+export interface TimetableSlot {
+  timetable_id: string; day_of_week: string; start_time: string; end_time: string; room_no: string | null;
+  session_type: string; subject: { subject_code: string; subject_name: string }; section: { section_name: string };
+}
+
+export async function myTimetable(teacherId?: string): Promise<TimetableSlot[]> {
+  const r = await api.get('/timetable', { params: teacherId ? { teacherId } : {} });
+  return r.data.data;
+}
+
+export async function quickStartSession(timetableId: string): Promise<{ session_id: string; status: string }> {
+  const r = await api.post('/sessions/quick-start', { timetableId });
+  return r.data.data;
+}
+
 export { errMsg, api };

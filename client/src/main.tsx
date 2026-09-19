@@ -23,7 +23,10 @@ import ApprovalsPage from './pages/staff/ApprovalsPage';
 import AdminPage from './pages/staff/AdminPage';
 import TimetableAnalyzer from './pages/staff/TimetableAnalyzer';
 import JoinCodeStaff from './pages/staff/JoinCodeStaff';
+import TakeAttendance from './pages/staff/TakeAttendance';
+import BleSession from './pages/staff/BleSession';
 import JoinSectionStudent from './pages/student/JoinSectionStudent';
+import BleCheckin from './pages/student/BleCheckin';
 
 function Protected({ roles }: { roles?: Role[] }) {
   const user = useAuth((s) => s.user);
@@ -76,6 +79,7 @@ function Shell() {
             <Route index element={<StudentHome />} />
             <Route path="sessions" element={<StudentSessions />} />
             <Route path="scan" element={<StudentScan />} />
+            <Route path="auto" element={<BleCheckin />} />
             <Route path="analytics" element={<StudentAnalytics />} />
             <Route path="notifications" element={<NotificationsPage />} />
             <Route path="condonation" element={<CondonationApply />} />
@@ -87,6 +91,8 @@ function Shell() {
         <Route element={<Protected roles={['TEACHER', 'HOD', 'ADMIN', 'SUPER_ADMIN']} />}>
           <Route path="/staff" element={<StaffLayout />}>
             <Route index element={<StaffHome />} />
+            <Route path="take" element={<TakeAttendance />} />
+            <Route path="ble" element={<BleSession />} />
             <Route path="sessions" element={<SessionsPage />} />
             <Route path="sessions/:id" element={<SessionMark />} />
             <Route path="approvals" element={<ApprovalsPage />} />

@@ -10,30 +10,39 @@ export default function ApprovalsPage() {
   const [msg, setMsg] = useState('');
 
   async function load() {
-    const [corr, leave] = await Promise.all([
-      api.get('/attendance/corrections?status=pending').then((r) => r.data.data).catch(() => []),
-      api.get('/leave?status=pending').then((r) => r.data.data).catch(() => []),
-    ]);
-    const mapped: Item[] = [
-      ...corr.map((c: any) => ({
-        id: c.correction_id, kind: 'correction' as const,
-        title: `${c.student?.name || 'Student'} — ${c.old_status} → ${c.requested_status}`,
-        sub: 'Attendance correction', detail: c.reason,
-      })),
-      ...leave.map((l: any) => ({
-        id: l.leave_id, kind: 'leave' as const,
-        title: l.student?.name || l.user?.name || 'Student',
-        sub: `Leave ${l.from_date} → ${l.to_date}`, detail: l.reason,
-      })),
-    ];
-    setItems(mapped);
+    setLoading(true);
+    try {
+      const [corr, leave] = await Promise.all([
+        api.get('/attendance/corrections?status=pending').then((r) => r.data.data ?? []).catch(() => []),
+        api.get('/leave?status=pending').then((r) => r.data.data ?? []).catch(() => []),
+      ]);
+      const mapped: Item[] = [
+        ...corr.map((c: any) => ({
+          id: c.correction_id, kind: 'correction' as const,
+          title: `${c.attendance?.student?.name || c.student?.name || 'Student'} — ${c.old_status} → ${c.requested_status}`,
+          sub: 'Attendance correction', detail: c.reason,
+        })),
+        ...leave.map((l: any) => ({
+          id: l.leave_id, kind: 'leave' as const,
+          title: l.student?.name || l.user?.name || 'Student',
+          sub: `Leave ${new Date(l.from_date).toLocaleDateString()} → ${new Date(l.to_date).toLocaleDateString()}`, detail: l.reason,
+        })),
+      ];
+      setItems(mapped);
+    } catch (e) {
+      setMsg(errMsg(e));
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function decideRej(kind: 'correction' | 'leave', id: string) {
+    const reason = window.prompt('Reason for rejection?')?.trim();
+    if (!reason) return; // cancelled or empty → do nothing
     try {
-      if (kind === 'correction') await api.put(`/attendance/corrections/${id}/reject`, { reason: 'Rejected by HOD' });
-      else await api.put(`/leave/${id}/reject`, { reason: 'Rejected by HOD' });
-      setMsg('✓ rejected');
+      if (kind === 'correction') await api.put(`/attendance/corrections/${id}/reject`, { reason });
+      else await api.put(`/leave/${id}/reject`, { reason });
+      setMsg('✓ Rejected');
       await load();
     } catch (e) { setMsg(errMsg(e)); }
   }

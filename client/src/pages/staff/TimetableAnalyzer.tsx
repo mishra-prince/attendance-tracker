@@ -66,8 +66,8 @@ export default function TimetableAnalyzer() {
       <div className="text-ash text-sm">Upload a photo of the timetable — AI extracts every class automatically.</div>
 
       <select value={sectionId} onChange={(e) => setSectionId(e.target.value)} className="glass-card px-4 py-3 rounded-xl bg-transparent text-bone text-sm w-full">
-        <option value="" className="bg-ink">Select section…</option>
-        {sections.map((s) => <option key={s.section_id} value={s.section_id} className="bg-ink">{s.section_name}</option>)}
+        <option value="" className="bg-carbon">Select section…</option>
+        {sections.map((s) => <option key={s.section_id} value={s.section_id} className="bg-carbon">{s.section_name}</option>)}
       </select>
 
       <label className={`glass-card rounded-2xl p-6 flex flex-col items-center gap-2 cursor-pointer ${sectionId ? '' : 'opacity-40 pointer-events-none'}`}>

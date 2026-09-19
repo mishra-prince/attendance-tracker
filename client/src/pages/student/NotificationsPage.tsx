@@ -46,7 +46,7 @@ export default function NotificationsPage() {
                 {n.type.replace('_', ' ')}
               </span>
               <span className="text-white/40 text-xs">{fmt(n.sent_at)}</span>
-              {!n.read_at && <span className="w-2 h-2 rounded-full bg-signal-red" />}
+              {!n.read_at && <span className="w-2 h-2 rounded-full bg-signal" />}
             </div>
             <div className="text-white/90 text-sm">{n.message}</div>
           </div>

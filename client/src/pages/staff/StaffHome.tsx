@@ -38,6 +38,8 @@ export default function StaffHome() {
         <div className="text-bone text-xl font-semibold">{user.name}</div>
       </div>
 
+      <Link to="/staff/take" className="btn-primary text-center no-underline block pulse-glow">Take attendance now</Link>
+
       {loading && <div className="grid grid-cols-2 gap-3"><CardSkeleton h="h-28" /><CardSkeleton h="h-28" /></div>}
       {!loading && (
       <div className="grid grid-cols-2 gap-3">

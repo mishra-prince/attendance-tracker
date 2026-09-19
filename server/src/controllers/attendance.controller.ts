@@ -72,6 +72,32 @@ router.post('/sessions/generate', requireRole('HOD', 'ADMIN', 'SUPER_ADMIN'), as
   } catch (e) { next(e); }
 });
 
+// Teacher one-tap: create (if needed) + open TODAY's session for one of their timetable slots.
+// Idempotent — returns the existing session if it already exists.
+router.post('/sessions/quick-start', requireRole('TEACHER', 'HOD', 'ADMIN', 'SUPER_ADMIN'), validateBody(z.object({ timetableId: z.string().min(1) })), async (req: AuthRequest, res, next) => {
+  try {
+    const slot = await prisma.timetable.findUnique({ where: { timetable_id: req.body.timetableId } });
+    if (!slot) throw httpError(404, 'Timetable slot not found');
+    if (req.user!.role === 'TEACHER' && slot.teacher_id !== req.user!.teacherId) {
+      throw httpError(403, 'Not your class');
+    }
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    let session = await prisma.classSession.findFirst({ where: { timetable_id: slot.timetable_id, date: today } });
+    if (!session) {
+      session = await prisma.classSession.create({
+        data: {
+          timetable_id: slot.timetable_id, subject_id: slot.subject_id, section_id: slot.section_id,
+          teacher_id: slot.teacher_id, date: today, start_time: slot.start_time, end_time: slot.end_time,
+          session_type: slot.session_type, status: 'open',
+        },
+      });
+    } else if (session.status === 'scheduled') {
+      session = await prisma.classSession.update({ where: { session_id: session.session_id }, data: { status: 'open' } });
+    }
+    res.status(201).json({ success: true, data: session });
+  } catch (e) { next(e); }
+});
+
 router.get('/sessions/:id', requireRole('TEACHER', 'HOD', 'ADMIN', 'SUPER_ADMIN'), async (req: AuthRequest, res, next) => {
   try {
     const session = await prisma.classSession.findUnique({

@@ -86,9 +86,12 @@ export default function StudentHome() {
         </Link></StaggerItem>
       )}
 
-      <StaggerItem>
+      <StaggerItem className="grid grid-cols-2 gap-3">
         <motion.div whileTap={{ scale: 0.97 }} transition={spring}>
-          <Link to="/student/scan" className="btn-primary text-center no-underline block pulse-glow">Scan QR to check in</Link>
+          <Link to="/student/scan" className="btn-primary text-center no-underline block pulse-glow">Scan QR</Link>
+        </motion.div>
+        <motion.div whileTap={{ scale: 0.97 }} transition={spring}>
+          <Link to="/student/auto" className="btn-ghost text-center no-underline block">Auto check-in</Link>
         </motion.div>
       </StaggerItem>
 
