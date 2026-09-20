@@ -25,6 +25,7 @@ import TimetableAnalyzer from './pages/staff/TimetableAnalyzer';
 import JoinCodeStaff from './pages/staff/JoinCodeStaff';
 import TakeAttendance from './pages/staff/TakeAttendance';
 import BleSession from './pages/staff/BleSession';
+import SupervisedEnrollment from './pages/staff/SupervisedEnrollment';
 import JoinSectionStudent from './pages/student/JoinSectionStudent';
 import BleCheckin from './pages/student/BleCheckin';
 
@@ -93,6 +94,7 @@ function Shell() {
             <Route index element={<StaffHome />} />
             <Route path="take" element={<TakeAttendance />} />
             <Route path="ble" element={<BleSession />} />
+            <Route path="enrollment" element={<SupervisedEnrollment />} />
             <Route path="sessions" element={<SessionsPage />} />
             <Route path="sessions/:id" element={<SessionMark />} />
             <Route path="approvals" element={<ApprovalsPage />} />

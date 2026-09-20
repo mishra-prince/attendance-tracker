@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, CalendarDays, ClipboardCheck, Settings, LogOut, Menu, X, Sparkles, KeyRound, CheckSquare } from 'lucide-react';
+import { LayoutDashboard, CalendarDays, ClipboardCheck, Settings, LogOut, Menu, X, Sparkles, KeyRound, CheckSquare, ScanFace } from 'lucide-react';
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useAuth } from '../store/auth';
@@ -19,6 +19,7 @@ export default function StaffLayout() {
     { to: '/staff/approvals', icon: ClipboardCheck, label: 'Approvals' },
     { to: '/staff/analyzer', icon: Sparkles, label: 'AI Timetable' },
     { to: '/staff/join-code', icon: KeyRound, label: 'Join Code' },
+    { to: '/staff/enrollment', icon: ScanFace, label: 'Enrollment' },
     ...(isAdmin ? [{ to: '/staff/admin', icon: Settings, label: 'Admin' }] : []),
   ];
 

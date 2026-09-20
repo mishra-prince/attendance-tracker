@@ -116,4 +116,38 @@ export async function quickStartSession(timetableId: string): Promise<{ session_
   return r.data.data;
 }
 
+// ---- Biometric enrollment (root of trust) ----
+export type EnrollmentTrustState =
+  | 'UNENROLLED' | 'PENDING_SUPERVISED_ENROLLMENT' | 'ACTIVE' | 'REVOKED' | 'REQUIRES_REENROLLMENT';
+export type EnrollmentMethod =
+  | 'SUPERVISED_STAFF' | 'INSTITUTIONAL_ID_CARD' | 'REGISTRATION_RECORD'
+  | 'TRUSTED_IDENTITY_SYSTEM' | 'BIOMETRIC_ENROLLMENT_STATION';
+
+export interface EnrollmentInfo {
+  enrollment_trust_state: EnrollmentTrustState;
+  enrollment: { status: string; method: EnrollmentMethod; biometric_version: number } | null;
+}
+
+export async function getEnrollment(studentId: string): Promise<EnrollmentInfo> {
+  const r = await api.get(`/enrollment/biometric/${studentId}`);
+  return r.data.data;
+}
+
+// Supervised (staff-operated) initial enrollment. Students cannot call this for themselves.
+export async function superviseEnroll(studentId: string, enrollmentMethod: EnrollmentMethod, livenessPassed: boolean, deviceId?: string) {
+  const r = await api.post('/enrollment/biometric', { studentId, enrollmentMethod, livenessPassed, deviceId });
+  return r.data.data;
+}
+
+export async function reEnroll(studentId: string, enrollmentMethod: EnrollmentMethod, livenessPassed: boolean, deviceId?: string) {
+  const r = await api.post('/enrollment/biometric/reenroll', { studentId, enrollmentMethod, livenessPassed, deviceId });
+  return r.data.data;
+}
+
+// Roster for staff-side enrollment (reuses admin students list).
+export async function listStudents(): Promise<{ student_id: string; name: string; roll_no: string; enrollment_trust_state?: EnrollmentTrustState }[]> {
+  const r = await api.get('/students');
+  return r.data.data ?? [];
+}
+
 export { errMsg, api };
