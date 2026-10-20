@@ -8,13 +8,13 @@ Built for college/university use: students check in, teachers create sessions, H
 
 ## ✨ Features
 
-- **Role-based auth** — Student, Teacher, HOD, Admin (JWT, bcrypt)
+- **Role-based auth** — Student, Teacher, HOD, Admin (JWT + bcrypt)
 - **Attendance sessions** — teachers create sessions with auto-generated join codes
 - **Multi-method check-in** — join code, QR code, BLE beacon, or manual
 - **Leave requests** — students apply, HOD/admin approves with notes
 - **Device integrity** — detects rooted/emulator devices, assigns trust tiers
 - **Supervised enrollment** — staff root-of-trust biometric capture, no self-enroll
-- **Liquid Glass UI** — dark, translucent, depth-aware design (see `docs/DESIGN.md`)
+- **Liquid Glass UI** — dark, translucent, depth-aware design (see [`docs/DESIGN.md`](docs/DESIGN.md))
 - **Android APK** — Capacitor-wrapped, installable on any Android 8+ device
 - **REST API** — Express + Prisma + PostgreSQL, fully typed with Zod validation
 
@@ -41,7 +41,7 @@ Built for college/university use: students check in, teachers create sessions, H
                        │
 ┌──────────────────────▼──────────────────────────────┐
 │  PostgreSQL (Prisma ORM)                            │
-│  Users, Sessions, Records, Leaves, Integrity,       │
+│  Users · Sessions · Records · Leaves · Integrity ·  │
 │  Enrollment                                         │
 └─────────────────────────────────────────────────────┘
 ```
@@ -65,6 +65,7 @@ Built for college/university use: students check in, teachers create sessions, H
 ## 🚀 Quick Start
 
 ### Prerequisites
+
 - Node.js 18+
 - PostgreSQL 14+ (or Docker)
 
@@ -77,14 +78,14 @@ docker run -d --name att-postgres \
   -e POSTGRES_DB=attendance \
   -p 5544:5432 postgres:16
 
-# Option B: use existing Postgres
+# Option B: use an existing Postgres instance
 ```
 
 ### 2. Server
 
 ```bash
 cd server
-cp .env.example .env   # edit DATABASE_URL
+cp .env.example .env   # then edit DATABASE_URL + JWT_SECRET
 npm install
 npx prisma migrate dev
 npm run dev            # → http://localhost:4100
@@ -104,7 +105,7 @@ npm run dev            # → http://localhost:5173 (proxies /api → :4100)
 cd client
 npm run android:sync   # copies web build into android/
 cd android && ./gradlew assembleDebug
-# APK at: app/build/outputs/apk/debug/app-debug.apk
+# APK → app/build/outputs/apk/debug/app-debug.apk
 ```
 
 ---
@@ -121,7 +122,7 @@ cd android && ./gradlew assembleDebug
 | GET | `/api/sessions/:id/records` | Teacher+ | View attendance records |
 | POST | `/api/leaves` | Student | Apply for leave |
 | GET | `/api/leaves` | Any | List leave requests |
-| PATCH | `/api/leaves/:id` | HOD+ | Approve/reject leave |
+| PATCH | `/api/leaves/:id` | HOD+ | Approve / reject leave |
 | POST | `/api/enrollment` | Staff | Enroll student (supervised) |
 | GET | `/api/enrollment/status` | Student | Check enrollment status |
 | POST | `/api/integrity/report` | Any | Report device integrity |
@@ -144,11 +145,11 @@ attendance-tracker/
 │   ├── capacitor.config.ts
 │   └── vite.config.ts
 ├── server/                 # Express + Prisma API
-│   ├── src/index.ts        # All routes in one file
+│   ├── src/index.ts        # All routes
 │   ├── prisma/
 │   │   ├── schema.prisma   # 6 models, 4 enums
 │   │   └── migrations/     # 6 migrations
-│   └── .env                # DATABASE_URL, JWT_SECRET, PORT
+│   └── .env.example        # Environment template
 ├── docs/
 │   └── DESIGN.md           # Liquid Glass design system
 └── README.md
@@ -158,32 +159,36 @@ attendance-tracker/
 
 ## 🔐 Environment Variables
 
-**server/.env**
+Copy `server/.env.example` → `server/.env` and fill in:
+
 ```env
 DATABASE_URL="postgresql://postgres:attdev123@localhost:5544/attendance"
-JWT_SECRET="change-this-to-a-random-string"
+JWT_SECRET="change-this-to-a-random-string-in-production"
 PORT=4100
 ```
 
+> ⚠️ Never commit `.env` — it is gitignored.
+
 ---
 
-## 🎨 Design System
+## 🎨 Design System — Liquid Glass
 
-The UI uses the **Liquid Glass** theme — a dark, translucent design language:
+The UI uses a dark, translucent design language inspired by Apple visionOS / iOS 26:
 
 - Frosted-glass cards with `backdrop-filter: blur(24px)`
-- Near-black background (`#0a0a0f`) with subtle borders
-- Indigo→violet accent gradients
-- Signal colors: green (present), amber (late), red (absent)
+- Near-black background (`#0a0a0f`) with subtle `rgba` borders
+- Indigo → violet accent gradients
+- Signal colors: 🟢 present · 🟡 late · 🔴 absent
 - Safe-area padding for notched devices
+- Minimum 44×44 px touch targets
 
-Full token reference in [`docs/DESIGN.md`](docs/DESIGN.md).
+Full token reference → [`docs/DESIGN.md`](docs/DESIGN.md)
 
 ---
 
 ## 📱 Android APK
 
-The latest debug APK is built via Capacitor:
+Built with Capacitor 7 wrapping the React web app:
 
 ```bash
 cd client/android
@@ -192,21 +197,24 @@ cd client/android
 
 Output: `app/build/outputs/apk/debug/app-debug.apk` (~5.5 MB)
 
-**Install on device:**
+Install:
+
 ```bash
 adb install -r app-debug.apk
 ```
+
+Or download the latest APK from [Releases](../../releases).
 
 ---
 
 ## 🧪 Development
 
 ```bash
-# Run both server + client concurrently
-npm run dev          # from root (uses concurrently)
+# Install all deps (server + client)
+npm run install:all
 
-# Run server tests (if added)
-cd server && npm test
+# Run server + client concurrently
+npm run dev
 
 # Type-check frontend
 cd client && npx tsc --noEmit
@@ -222,11 +230,11 @@ MIT — free to use, modify, and distribute.
 
 ## 👤 Author
 
-**Prince Kumar Mishra** ([@mishra-prince](https://github.com/mishra-prince))
+**Prince Kumar Mishra** — [@mishra-prince](https://github.com/mishra-prince)
 
 ---
 
 ## 🙏 Acknowledgments
 
 - Design inspired by Apple visionOS / iOS 26 Liquid Glass
-- Built with [Prisma](https://prisma.io), [Capacitor](https://capacitorjs.com), [Tailwind CSS](https://tailwindcss.com)
+- Built with [Prisma](https://prisma.io) · [Capacitor](https://capacitorjs.com) · [Tailwind CSS](https://tailwindcss.com) · [Vite](https://vitejs.dev)
