@@ -1,4 +1,40 @@
-node_modules/
-dist/
+# Environment
 .env
+.env.local
+.env.production
+
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Logs
 *.log
+threshold-*-gradle.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Android build artifacts (keep source, not outputs)
+client/android/app/build/
+client/android/.gradle/
+client/android/build/
+client/android/capacitor-cordova-android-plugins/build/
+
+# Capacitor generated
+client/android/app/src/main/assets/public/
+client/android/app/src/main/res/xml/config.xml
+
+# Prisma generated
+server/prisma/*.db
+server/prisma/*.db-journal
