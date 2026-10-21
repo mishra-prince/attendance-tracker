@@ -1,5 +1,5 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, CalendarDays, ClipboardCheck, Settings, LogOut, Menu, X, Sparkles, KeyRound, CheckSquare, ScanFace } from 'lucide-react';
+import { NavLink, Outlet } from 'react-router-dom';
+import { LayoutDashboard, CalendarDays, ClipboardCheck, Settings, LogOut, Menu, X, Sparkles, KeyRound, CheckSquare, ScanFace, Bluetooth } from 'lucide-react';
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useAuth } from '../store/auth';
@@ -8,13 +8,13 @@ import { spring } from '../components/motion';
 export default function StaffLayout() {
   const user = useAuth((s) => s.user)!;
   const logout = useAuth((s) => s.logout);
-  const nav = useNavigate();
   const [drawer, setDrawer] = useState(false);
   const isAdmin = user.role === 'ADMIN' || user.role === 'SUPER_ADMIN';
 
   const links = [
     { to: '/staff', icon: LayoutDashboard, label: 'Overview', end: true },
     { to: '/staff/take', icon: CheckSquare, label: 'Take Attendance' },
+    { to: '/staff/ble', icon: Bluetooth, label: 'Bluetooth class' },
     { to: '/staff/sessions', icon: CalendarDays, label: 'Sessions' },
     { to: '/staff/approvals', icon: ClipboardCheck, label: 'Approvals' },
     { to: '/staff/analyzer', icon: Sparkles, label: 'AI Timetable' },
@@ -39,7 +39,7 @@ export default function StaffLayout() {
       </nav>
       <button
         className="sidebar-link mt-auto text-left"
-        onClick={() => { logout(); nav('/login'); }}
+        onClick={() => void logout()}
       >
         <LogOut size={18} />
         Sign out

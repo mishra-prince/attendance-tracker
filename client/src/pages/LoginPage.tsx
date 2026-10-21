@@ -1,118 +1,50 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { GraduationCap, ArrowRight, ShieldCheck } from 'lucide-react';
+import { ArrowRight, ShieldCheck, Bluetooth, Eye, EyeOff } from 'lucide-react';
 import { api, errMsg } from '../lib/api';
+import { apiConfigured } from '../lib/config';
 import { useAuth } from '../store/auth';
-import { spring } from '../components/motion';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const login = useAuth((s) => s.login);
-  const nav = useNavigate();
-
+  const navigate = useNavigate();
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    setBusy(true);
-    setError('');
+    if (busy) return;
+    setBusy(true); setError('');
     try {
-      const res = await api.post('/auth/login', { email, password, portal: 'student' });
-      const { accessToken, refreshToken, user } = res.data.data;
-      login(user, accessToken, refreshToken ?? '');
-      nav('/student', { replace: true });
-    } catch (e) {
-      setError(errMsg(e));
-    } finally {
-      setBusy(false);
-    }
+      const response = await api.post('/auth/login', { email: email.trim(), password, portal: 'student' });
+      const { accessToken, user } = response.data.data;
+      login(user, accessToken); navigate('/student', { replace: true });
+    } catch (e) { setError(errMsg(e)); }
+    finally { setBusy(false); }
   }
-
   return (
-    <div className="min-h-full flex flex-col items-center justify-center px-6 py-10 gap-7">
-      <motion.div
-        className="flex flex-col items-center text-center gap-3"
-        initial={{ opacity: 0, y: 16, scale: 0.96 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={spring}
-      >
-        <div className="w-14 h-14 rounded-2xl glass-heavy grid place-items-center">
-          <GraduationCap size={26} className="text-signal" />
-        </div>
-        <div>
-          <div className="text-bone text-2xl font-semibold tracking-tight">Threshold</div>
-          <div className="text-ash text-sm mt-1">Student sign-in</div>
-        </div>
-      </motion.div>
-
-      <motion.form
-        onSubmit={submit}
-        className="glass-medium rounded-2xl p-6 w-full max-w-sm flex flex-col gap-4 sweep relative overflow-hidden"
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ ...spring, delay: 0.08 }}
-      >
-        <div>
-          <label htmlFor="email" className="text-ash text-xs mb-1.5 block">Email</label>
-          <input
-            id="email"
-            className="input"
-            type="email"
-            autoComplete="username"
-            placeholder="you@college.edu"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
-        </div>
-        <div>
-          <label htmlFor="password" className="text-ash text-xs mb-1.5 block">Password</label>
-          <input
-            id="password"
-            className="input"
-            type="password"
-            autoComplete="current-password"
-            placeholder="••••••••"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-        </div>
-        {error && (
-          <motion.div
-            role="alert"
-            className="text-signal text-sm"
-            initial={{ opacity: 0, x: -8 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={spring}
-          >
-            {error}
-          </motion.div>
-        )}
-        <motion.button
-          className="btn-primary flex items-center justify-center gap-2"
-          disabled={busy}
-          whileTap={{ scale: 0.97 }}
-          animate={busy ? { opacity: 0.7 } : { opacity: 1 }}
-        >
-          {busy ? 'Signing in…' : <>Sign in <ArrowRight size={16} /></>}
-        </motion.button>
-      </motion.form>
-
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.24 }}
-      >
-        <Link
-          to="/staff-login"
-          className="text-muted text-xs flex items-center gap-1.5 hover:text-ash transition-colors"
-        >
-          <ShieldCheck size={13} /> Staff &amp; admin portal
-        </Link>
-      </motion.div>
-    </div>
+    <main className="login-shell">
+      <section className="login-story">
+        <div className="login-wordmark"><span className="icon-tile"><Bluetooth size={23} className="text-signal" /></span>threshold<span className="text-signal">/</span></div>
+        <p className="eyebrow !mt-0 !mb-4">SHOW UP. KEEP GOING.</p>
+        <h1>Your presence.<br /><span>Made simple.</span></h1>
+        <p>One less thing between you and learning. Check in with your phone and keep your attendance in view.</p>
+        <p className="login-note"><ShieldCheck size={16} /> Your institution. Your attendance. One place.</p>
+      </section>
+      <section className="login-form-panel glass-medium">
+        <div><p className="eyebrow mb-2">STUDENT PORTAL</p><h2>Welcome back.</h2><p className="text-ash text-sm mt-2">Sign in with your institution account.</p></div>
+        <form className="flex flex-col gap-5" onSubmit={submit}>
+          <label className="text-sm text-ash" htmlFor="email">College email<input className="input mt-2" id="email" type="email" autoComplete="username" placeholder="you@college.edu" required value={email} onChange={(e) => setEmail(e.target.value)} /></label>
+          <label className="text-sm text-ash" htmlFor="password">Password<div className="password-field mt-2"><input className="input" id="password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" placeholder="Enter your password" required value={password} onChange={(e) => setPassword(e.target.value)} /><button type="button" aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword} onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></div></label>
+          {!apiConfigured && <p className="notice">This app is not connected to your institution yet. Contact your administrator.</p>}
+          {error && <p role="alert" className="notice notice-error">{error}</p>}
+          <button className="btn-primary flex items-center justify-between" disabled={busy || !apiConfigured}>{busy ? 'Signing in…' : 'Sign in'}<ArrowRight size={18} /></button>
+        </form>
+        <p className="text-xs text-ash leading-relaxed">Need an account or a password reset? Your institution’s administrator can help.</p>
+        <div className="border-t border-white/10 pt-5"><Link to="/staff-login" className="text-ash text-xs no-underline flex items-center justify-between"><span className="flex items-center gap-2"><ShieldCheck size={15} />Teacher or administrator?</span><ArrowRight size={16} /></Link></div>
+      </section>
+    </main>
   );
 }

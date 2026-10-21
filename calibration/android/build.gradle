@@ -1,0 +1,9 @@
+// Isolated build entry point: no Capacitor, Node packages, attendance API or database.
+buildscript {
+    repositories { google(); mavenCentral() }
+    dependencies { classpath 'com.android.tools.build:gradle:8.13.0' }
+}
+apply from: '../../client/android/variables.gradle'
+allprojects {
+    repositories { google(); mavenCentral() }
+}

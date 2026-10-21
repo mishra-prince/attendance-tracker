@@ -4,8 +4,13 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
+  if (process.env.NODE_ENV === 'production' || process.env.ALLOW_DEMO_SEED !== 'true') {
+    throw new Error('Demo seed is destructive. Use a disposable local database and explicitly set ALLOW_DEMO_SEED=true.');
+  }
+  const demoPassword = process.env.DEMO_SEED_PASSWORD;
+  if (!demoPassword || demoPassword.length < 12) throw new Error('Set DEMO_SEED_PASSWORD to a development-only password of at least 12 characters');
   console.log('🌱 Seeding…');
-  const hash = await bcrypt.hash('Password@123', 10);
+  const hash = await bcrypt.hash(demoPassword, 12);
 
   // wipe (dev seed)
   await prisma.$executeRawUnsafe(`TRUNCATE TABLE "AuditLog", "Notification", "AttendanceQRSession", "AttendanceCorrection", "Attendance", "ClassSession", "Timetable", "Enrollment", "SubjectTeacher", "Leave", "Settings", "Student", "Teacher", "Section", "Subject", "Course", "Semester", "AcademicYear", "Department", "User" CASCADE`);
@@ -25,8 +30,6 @@ async function main() {
   );
 
   // ---- Org structure ----
-  const teacher = await prisma.teacher.create({ data: { user_id: teacherUser.user_id, name: 'Prof. Rahul Verma', employee_id: 'EMP001', department_id: 'x' } }).catch(() => null);
-
   const department = await prisma.department.create({ data: { name: 'Computer Science', code: 'CSE' } });
   const hod = await prisma.teacher.create({ data: { user_id: hodUser.user_id, name: 'Dr. Meera HOD', employee_id: 'EMP000', department_id: department.department_id } });
   await prisma.department.update({ where: { department_id: department.department_id }, data: { hod_id: hod.teacher_id } });
@@ -181,7 +184,7 @@ async function main() {
   }
 
   console.log(`✅ Seed complete: ${allStudents.length} students, ${made} past sessions, 1 open session today`);
-  console.log('   Logins (password: Password@123):');
+  console.log('   Development logins use your DEMO_SEED_PASSWORD:');
   console.log('   superadmin@att.edu | admin@att.edu | hod@att.edu | teacher@att.edu | teacher2@att.edu | student@att.edu');
 }
 

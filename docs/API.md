@@ -6,9 +6,9 @@ Base URL: `/api`. Protected routes require `Authorization: Bearer <token>`. Resp
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
 | POST | `/auth/signup` | Admin/Super Admin only | Create a User (student/teacher accounts are provisioned by admins, not self-signup, in most colleges — adjust if open signup is desired) |
-| POST | `/auth/login` | Public | Returns access + refresh token |
-| POST | `/auth/refresh` | Cookie | New access token |
-| POST | `/auth/logout` | Auth | Revoke refresh token |
+| POST | `/auth/login` | Public | Returns access token + user; refresh token is an HttpOnly cookie |
+| POST | `/auth/refresh` | Cookie | Rotates refresh cookie and returns access token + user |
+| POST | `/auth/logout` | Cookie | Revoke server session and clear refresh cookie |
 
 ## Users / Departments / Academic structure (admin-managed)
 | Method | Endpoint | Auth | Description |
@@ -126,3 +126,18 @@ Device attestation is submitted as an integrity **signal** (stored as `DeviceInt
 | 500 | Server error |
 
 Note: an integrity `FALLBACK_REQUIRED` or `REVIEW_REQUIRED` outcome is **not** an error status — it is a normal 200 response carrying the outcome, so unsupported-device students are routed to a fallback rather than being rejected as if they cheated.
+
+## Bluetooth and authentication update (1.1)
+
+All POST /auth operations require X-Requested-With: Threshold. Web/native clients use credentials-enabled requests. Bearer access tokens are bound to a revocable RefreshSession and roles are read from the database. Never send a refresh token in JSON.
+
+| Method | Endpoint | Scope | Description |
+| --- | --- | --- | --- |
+| POST | /ble/start-session | Assigned teacher | timetableId; only during scheduled class time |
+| GET | /ble/my-session | Assigned teacher | Active session and expiring rotating broadcast token |
+| POST | /ble/scan | Enrolled student, same section | beaconId and integer rssi (-127 to -1); one observation per server window |
+| GET | /ble/status | Student | Recorded dwell, progress and provisional requirement state |
+| POST | /ble/finalize/:id | Assigned teacher | Transactional present records; missing evidence remains for review |
+| POST | /ble/cancel/:id | Assigned teacher | Close signal without changing attendance |
+
+The former internal /ble/auto-finalize route is removed. Finalization requires the assigned teacher. The teacher still reviews and submits the class roster separately. See BLUETOOTH_SECURITY.md for exact behavior and limits.

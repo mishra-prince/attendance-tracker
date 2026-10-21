@@ -72,8 +72,8 @@ export async function joinClassroom(code: string): Promise<{ joined: string; enr
 }
 
 // ---- BLE ----
-export interface BleTeacherSession { session_id: string; subject_id: string; section_id: string; required_minutes: number; pings: number; students_seen: number; beacon_id: string; window: number; rotate_ms: number; }
-export interface BleStudentStatus { session_id: string; required_minutes: number; dwell_minutes: number; progress: number; secured: boolean; anchor_required: boolean; }
+export interface BleTeacherSession { session_id: string; class_session_id: string; subject_id: string; section_id: string; required_minutes: number; pings: number; students_seen: number; beacon_id: string | null; window: number; rotate_ms: number; valid_for_ms: number; expires_at: string; }
+export interface BleStudentStatus { session_id: string; required_minutes: number; dwell_minutes: number; progress: number; secured: boolean; anchor_required: boolean; last_seen_at: string | null; ends_at: string; awaiting_teacher: boolean; }
 
 export async function startBleSession(timetableId: string): Promise<any> {
   const r = await api.post('/ble/start-session', { timetableId });
@@ -95,9 +95,14 @@ export async function bleStatus(): Promise<BleStudentStatus | null> {
   return r.data.data;
 }
 
-export async function finalizeBle(sessionId: string): Promise<{ present: number; low: number; absent: number }> {
+export async function finalizeBle(sessionId: string): Promise<{ present: number; low: number; absent: number; review_required: number; class_session_id: string }> {
   const r = await api.post(`/ble/finalize/${sessionId}`);
   return r.data.data;
+}
+
+export async function cancelBle(sessionId: string): Promise<{ class_session_id: string }> {
+  const response = await api.post(`/ble/cancel/${sessionId}`);
+  return response.data.data;
 }
 
 // ---- Timetable + quick session start ----

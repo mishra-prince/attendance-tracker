@@ -1,47 +1,23 @@
 import { create } from 'zustand';
-
+import axios from 'axios';
+import { API_BASE, requestOptions } from '../lib/config';
 export type Role = 'SUPER_ADMIN' | 'ADMIN' | 'HOD' | 'TEACHER' | 'STUDENT';
-
-export interface AuthUser {
-  userId: string;
-  role: Role;
-  name?: string;
-  email?: string;
-  studentId?: string;
-  teacherId?: string;
-  departmentId?: string | null;
-}
-
+export interface AuthUser { userId: string; role: Role; name?: string; email?: string; studentId?: string; teacherId?: string; departmentId?: string | null; }
 interface AuthState {
-  user: AuthUser | null;
-  accessToken: string | null;
-  login: (user: AuthUser, accessToken: string, refreshToken: string) => void;
-  logout: () => void;
+  user: AuthUser | null; accessToken: string | null; error: string;
+  login: (user: AuthUser, accessToken: string) => void;
+  clear: () => void;
+  logout: () => Promise<void>;
 }
-
+try { localStorage.removeItem('auth'); } catch { /* storage may be disabled */ }
 export const useAuth = create<AuthState>((set) => ({
-  user: (() => {
+  user: null, accessToken: null, error: '',
+  login: (user, accessToken) => set({ user, accessToken, error: '' }),
+  clear: () => set({ user: null, accessToken: null }),
+  logout: async () => {
     try {
-      const raw = localStorage.getItem('auth');
-      return raw ? (JSON.parse(raw).user as AuthUser) : null;
-    } catch {
-      return null;
-    }
-  })(),
-  accessToken: (() => {
-    try {
-      const raw = localStorage.getItem('auth');
-      return raw ? (JSON.parse(raw).accessToken as string) : null;
-    } catch {
-      return null;
-    }
-  })(),
-  login: (user, accessToken, refreshToken) => {
-    localStorage.setItem('auth', JSON.stringify({ user, accessToken, refreshToken }));
-    set({ user, accessToken });
-  },
-  logout: () => {
-    localStorage.removeItem('auth');
-    set({ user: null, accessToken: null });
+      await axios.post(API_BASE + '/api/auth/logout', {}, requestOptions);
+      set({ user: null, accessToken: null, error: '' });
+    } catch { set({ error: 'Could not sign out. Check your connection and try again.' }); }
   },
 }));

@@ -15,7 +15,7 @@ router.use(authMiddleware);
 function crud(path: string, model: any, scope: any[], uniqueMsg: string) {
   router.post(path, requireRole(...scope), async (req: AuthRequest, res, next) => {
     try {
-      const created = await model.create({ data: req.body });
+      const created = await model().create({ data: req.body });
       await audit({ tableName: path, recordId: created[Object.keys(created)[0]], action: 'CREATE', changedBy: req.user!.userId, newValue: created, ...auditFromReq(req) });
       res.status(201).json({ success: true, data: created });
     } catch (e: any) {
@@ -25,7 +25,7 @@ function crud(path: string, model: any, scope: any[], uniqueMsg: string) {
   });
   router.get(path, requireRole(...scope), async (_req, res, next) => {
     try {
-      const rows = await model.findMany({ take: 500 });
+      const rows = await model().findMany({ take: 500 });
       res.json({ success: true, data: rows });
     } catch (e) { next(e); }
   });

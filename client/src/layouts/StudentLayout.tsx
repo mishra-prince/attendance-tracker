@@ -1,12 +1,12 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { Home, CalendarDays, QrCode, BarChart3, User } from 'lucide-react';
+import { Home, CalendarDays, Bluetooth, BarChart3, User } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { spring } from '../components/motion';
 
 const tabs = [
   { to: '/student', icon: Home, label: 'Home', end: true },
   { to: '/student/sessions', icon: CalendarDays, label: 'Sessions' },
-  { to: '/student/scan', icon: QrCode, label: 'Scan' },
+  { to: '/student/auto', icon: Bluetooth, label: 'Check in' },
   { to: '/student/analytics', icon: BarChart3, label: 'Stats' },
   { to: '/student/profile', icon: User, label: 'Profile' },
 ];
@@ -26,7 +26,7 @@ export default function StudentLayout() {
           <Outlet />
         </motion.div>
       </AnimatePresence>
-      <nav className="bottom-nav glass-heavy">
+      <nav className="bottom-nav glass-heavy" aria-label="Student navigation">
         {tabs.map(({ to, icon: Icon, label, end }) => (
           <NavLink key={to} to={to} end={end} className={({ isActive }) => (isActive ? 'active' : '')}>
             {({ isActive }) => (

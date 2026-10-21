@@ -1,0 +1,3 @@
+bd8efa8311ded8080e616923f5879ee1ab70b5d1f1ac2efa37633382c468afec  threshold-1.1.0-test.apk
+70af3153ee33cdc7b882d4177e072a5d705433f1bbcddde8b6875edff9d70fba  attendance-tracker-1.1.0-source.zip
+d179bc5daca83a04a77e591ac89a388ba1ac16e42da73971f1937de3a5a3339a  attendance-tracker-1.1.0.patch

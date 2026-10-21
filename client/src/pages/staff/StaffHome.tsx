@@ -23,10 +23,11 @@ export default function StaffHome() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [defaulters, setDefaulters] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
+  const [minimum, setMinimum] = useState<number | null>(null);
 
   useEffect(() => {
     api.get('/sessions').then((r) => setSessions(r.data.data.slice(0, 5))).catch(() => {});
-    api.get('/analytics/defaulters').then((r) => setDefaulters(r.data.data.defaulters.slice(0, 5))).catch(() => {}).finally(() => setLoading(false));
+    api.get('/analytics/defaulters').then((r) => { setDefaulters(r.data.data.defaulters.slice(0, 5)); setMinimum(r.data.data.minimum); }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   const open = sessions.filter((s) => s.status === 'open').length;
@@ -49,7 +50,7 @@ export default function StaffHome() {
         </div>
         <div className="glass-medium rounded-2xl p-5">
           <div className="display-numeral !text-5xl text-signal">{defaulters.length}</div>
-          <div className="text-ash text-sm mt-1">Defaulters below 75%</div>
+          <div className="text-ash text-sm mt-1">{minimum == null ? 'Below attendance minimum' : `Below ${minimum}% attendance`}</div>
         </div>
       </div>
 

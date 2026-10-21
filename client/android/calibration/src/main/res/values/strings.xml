@@ -1,0 +1,9 @@
+<resources>
+    <string name="include_ble">Also measure the ESP Bluetooth beacons</string>
+    <string name="listening">Listening…</string>
+    <string name="capture_instruction">Keep the phone in the labelled position. This capture ends automatically.</string>
+    <string name="attempt_problem">Attempt saved with a problem.</string>
+    <string name="saved_count">Saved: %1$d / %2$d\nCompleted: %3$d · Interrupted: %4$d · Errors: %5$d · Device limitations: %6$d\nExport before clearing or uninstalling. Use anonymous labels, not names or roll numbers.</string>
+    <string name="saved_error">Saved data could not be read. Export or recover it before clearing.</string>
+    <string name="app_name">Room Lab</string>
+</resources>

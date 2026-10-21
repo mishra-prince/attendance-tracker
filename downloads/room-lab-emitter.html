@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; img-src data:; media-src blob:; base-uri 'none'; form-action 'none'">
+<title>Threshold Room Lab · Speaker emitter</title>
+<style>
+:root{color-scheme:dark;font:16px system-ui,sans-serif;color:#f5f1ee;background:#0a0908}*{box-sizing:border-box}body{margin:0;padding:32px 20px 60px}main{max-width:760px;margin:auto}header{margin:10px 0 30px}.eyebrow{font-size:12px;letter-spacing:.14em;color:#ff786f}h1{font-size:clamp(32px,6vw,54px);font-weight:300;letter-spacing:-.04em;margin:12px 0}h2{font-size:18px;font-weight:550;margin:0 0 18px}p{color:#b7b1ad;line-height:1.6}section{padding:24px;margin:18px 0;background:#1c1b1e;border:1px solid #ffffff1a;border-radius:24px}label{display:block;color:#c5bfbb;font-size:14px;margin:16px 0 8px}input,select,button{font:inherit;min-height:48px;border-radius:12px;border:1px solid #ffffff30;background:#111013;color:inherit;padding:12px;width:100%}input[type=range]{padding:0;accent-color:#ff453a}button{cursor:pointer;border-radius:24px;background:#ffffff0c;font-weight:550}button.primary{background:#b92a22;border-color:#e2544b}button:disabled,input:disabled,select:disabled{opacity:.48;cursor:default}button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #ff786f;outline-offset:3px}.row{display:grid;grid-template-columns:1fr 1fr;gap:14px}.actions{display:flex;gap:12px;flex-wrap:wrap}.actions button{flex:1;min-width:180px}.status{font-size:26px;color:#f5f1ee;margin-bottom:8px}.small{font-size:13px}.code{font-variant-numeric:tabular-nums;font-family:ui-monospace,monospace;letter-spacing:.1em}.tag{display:inline-block;font-size:12px;border:1px solid #ffffff25;border-radius:20px;padding:6px 10px;color:#c9c3bf}footer{font-size:13px;color:#aaa4a0;line-height:1.6;margin-top:24px}@media(max-width:520px){.row{grid-template-columns:1fr}section{padding:20px}body{padding-top:20px}}
+</style>
+<main>
+<header><div class="eyebrow">THRESHOLD / ROOM LAB</div><h1>A signal to test the room.</h1><p>Play a repeating test code through the classroom's wired speaker. Measure it with students' Android phones at seats, doorways and corridor positions.</p><span class="tag">Offline · No microphone access · Calibration only</span></header>
+<section><h2>Match the Android app</h2><div class="row"><div><label for="code">Study code · four hexadecimal characters</label><input id="code" class="code" value="A17C" maxlength="4" pattern="[0-9A-Fa-f]{4}" autocomplete="off" spellcheck="false"></div><div><label for="profile">Sound profile</label><select id="profile"><option value="0">Audible diagnostic · 3 / 4 kHz</option><option value="1">High frequency · 17 / 18 kHz</option><option value="2">Near ultrasonic · 19 / 20 kHz</option></select></div></div><label for="volume">Digital output level: <output id="level">3%</output></label><input type="range" id="volume" min="1" max="15" value="3"><p class="small">Begin with low computer/speaker volume. High-frequency signals may be audible. Stop if uncomfortable. The percentage controls digital amplitude, not sound pressure or a guaranteed safe listening level.</p></section>
+<section><h2>Speaker control</h2><div class="status" id="status" role="status" aria-live="polite">Stopped.</div><p id="detail">Start the emitter, then tap “Measure for 6 seconds” in Room Lab. Keep the same code, profile and speaker setup for comparisons.</p><div class="actions"><button class="primary" id="start">Start repeating signal</button><button id="stop" disabled>Stop signal</button></div><p class="small">One frame lasts 1.6 seconds, followed by 0.4 seconds of silence. Hardware or audio processing may suppress high frequencies. A working audible test does not establish ultrasonic compatibility.</p></section>
+<section><h2>Optional WAV file</h2><p>Download one two-second cycle for a player that can repeat without gaps. Browser playback is preferred because some players insert a pause between repeats.</p><button id="download">Download the selected test signal</button></section>
+<section><h2>Collect comparable measurements</h2><p>Use the phone's built-in microphone. Label the actual position and door/window state. Test with the class occupied, with normal ventilation, and again on another day.</p><p>If corridor phones receive the expected code, that is a failed room-boundary test. Lowering volume until legitimate seats fail does not solve it.</p></section>
+<footer>This page sends no network requests and does not use a camera or microphone. The 16-bit study code and CRC are public test data, not authentication or a production attendance protocol. No attendance is awarded.</footer>
+</main>
+<script>
+'use strict';
+const RoomSignal = (() => {
+  const profiles = [[3000,4000],[17000,18000],[19000,20000]];
+  function crc8(code) {
+    let crc=0;
+    for(const byte of [code>>>8,code&255]){crc^=byte;for(let i=0;i<8;i++)crc=((crc&128)?(crc<<1)^7:crc<<1)&255;}
+    return crc;
+  }
+  function frameBits(code) {
+    if(!Number.isInteger(code)||code<0||code>65535)throw new Error('Invalid study code.');
+    const values=[[0xDDAA,16],[code,16],[crc8(code),8]], bits=[];
+    for(const [value,size] of values)for(let i=size-1;i>=0;i--)bits.push((value>>>i)&1);
+    return bits;
+  }
+  function samples(code,profile,rate=48000,amplitude=0.03) {
+    if(!profiles[profile]||![44100,48000].includes(rate)||!Number.isFinite(amplitude)||amplitude<0||amplitude>0.15)throw new Error('Invalid signal settings.');
+    const bits=frameBits(code), out=new Float32Array(rate*2), symbol=Math.round(rate*0.04), edge=Math.round(rate*0.002);
+    for(let bit=0;bit<bits.length;bit++)for(let i=0;i<symbol;i++){
+      const envelope=Math.min(1,i/edge,(symbol-1-i)/edge);
+      out[bit*symbol+i]=amplitude*envelope*Math.sin(2*Math.PI*profiles[profile][bits[bit]]*i/rate);
+    }
+    return out;
+  }
+  function wav(pcm,rate){
+    const bytes=new ArrayBuffer(44+pcm.length*2),v=new DataView(bytes);
+    const tag=(at,s)=>{for(let i=0;i<s.length;i++)v.setUint8(at+i,s.charCodeAt(i));};
+    tag(0,'RIFF');v.setUint32(4,bytes.byteLength-8,true);tag(8,'WAVE');tag(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);v.setUint32(24,rate,true);v.setUint32(28,rate*2,true);v.setUint16(32,2,true);v.setUint16(34,16,true);tag(36,'data');v.setUint32(40,pcm.length*2,true);
+    for(let i=0;i<pcm.length;i++)v.setInt16(44+i*2,Math.round(Math.max(-1,Math.min(1,pcm[i]))*32767),true);
+    return bytes;
+  }
+  return {profiles,crc8,frameBits,samples,wav};
+})();
+globalThis.RoomSignal=RoomSignal;
+if(typeof document!=='undefined'){
+  const $=id=>document.getElementById(id);let context=null,source=null,gain=null,busy=false;
+  function settings(){const code=$('code').value.trim();if(!/^[0-9a-f]{4}$/i.test(code))throw new Error('Enter four study-code characters: 0–9 or A–F.');return {code:parseInt(code,16),profile:Number($('profile').value),volume:Number($('volume').value)/100};}
+  function active(value){$('start').disabled=value;$('stop').disabled=!value;$('code').disabled=value;$('profile').disabled=value;$('download').disabled=value;}
+  async function stop(){const old=context;context=null;source=null;gain=null;active(false);$('status').textContent='Stopped.';if(old)try{await old.close();}catch{}}
+  $('start').addEventListener('click',async()=>{
+    if(busy||context)return;busy=true;active(true);
+    try{const cfg=settings();const Audio=globalThis.AudioContext||globalThis.webkitAudioContext;if(!Audio)throw new Error('This browser does not support audio synthesis. Try a current desktop browser.');context=new Audio();await context.resume();const pcm=RoomSignal.samples(cfg.code,cfg.profile,48000,0.15);const buffer=context.createBuffer(1,pcm.length,48000);buffer.copyToChannel(pcm,0);gain=context.createGain();gain.gain.value=cfg.volume/0.15;source=context.createBufferSource();source.buffer=buffer;source.loop=true;source.connect(gain);gain.connect(context.destination);source.start();$('status').textContent='Emitting '+cfg.code.toString(16).toUpperCase().padStart(4,'0')+'.';$('detail').textContent=$('profile').selectedOptions[0].text+' · output device '+context.sampleRate+' Hz. Keep this browser tab open while measuring.';}
+    catch(e){await stop();$('detail').textContent=e.message||String(e);}
+    finally{busy=false;}
+  });
+  $('stop').addEventListener('click',stop);
+  $('volume').addEventListener('input',()=>{$('level').value=$('volume').value+'%';if(gain&&context)gain.gain.setTargetAtTime(Number($('volume').value)/15,context.currentTime,0.03);});
+  $('download').addEventListener('click',()=>{try{const s=settings();const blob=new Blob([RoomSignal.wav(RoomSignal.samples(s.code,s.profile,48000,s.volume),48000)],{type:'audio/wav'});const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='room-lab-'+s.code.toString(16).toUpperCase().padStart(4,'0')+'-profile-'+s.profile+'.wav';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(e){$('detail').textContent=e.message;}});
+  globalThis.addEventListener('pagehide',stop);
+}
+</script>
+</html>

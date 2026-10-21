@@ -20,8 +20,8 @@ export default function StaffLoginPage() {
     setError('');
     try {
       const res = await api.post('/auth/login', { email, password, portal: 'staff' });
-      const { accessToken, refreshToken, user } = res.data.data;
-      login(user, accessToken, refreshToken ?? '');
+      const { accessToken, user } = res.data.data;
+      login(user, accessToken);
       nav('/staff', { replace: true });
     } catch (e) {
       setError(errMsg(e));

@@ -353,3 +353,7 @@ Rules (present/late/absent/excused/on_duty/medical → counts or excluded) are r
 | Credentials on `Student`/`Teacher` | Central `User` table | one auth system, one password policy |
 | Free-text `department` | `Department` entity | referential integrity, HOD linkage |
 | Hardcoded 75% threshold | `Settings.minimum_attendance_percentage` | configurable per institution |
+
+## 1.1 migration additions
+
+Migration 20261020120000_bluetooth_and_sessions brings the original migration history up to the current BLE/identity schema, restores Section.join_code and join_code_expires_at, and adds RefreshSession (hashed refresh token, user, expiry and revocation). The BlePing uniqueness on session_id, student_id and seen_at now deduplicates server-issued 30-second timestamp buckets. Auth and BLE mutations were exercised through a clean migration and real HTTP integration tests. Existing databases with untracked db-push changes require migration reconciliation before applying this migration; see BLUETOOTH_SECURITY.md.

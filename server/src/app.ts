@@ -15,17 +15,14 @@ import { errorMiddleware } from './middleware/error.middleware';
 
 const app = express();
 
-app.set('trust proxy', 1); // behind Cloudflare tunnel — fixes express-rate-limit ERR_ERL_UNEXPECTED_X_FORWARDED_FOR
+app.set('trust proxy', process.env.TRUST_PROXY_HOPS ? Number(process.env.TRUST_PROXY_HOPS) : false);
 
 app.use(helmet());
 app.use(cors({
   origin: (origin, cb) => {
-    const allowed = [...(process.env.CLIENT_URL?.split(',') || []), 'http://localhost:5173', 'https://localhost', 'http://localhost', 'capacitor://localhost'];
-    // Match the host on a dot boundary so 'eviltthreshold.dpdns.org' can't slip through.
-    let host = '';
-    try { host = new URL(origin || '').hostname; } catch { /* non-URL origin */ }
-    const okSuffix = host === 'threshold.dpdns.org' || host.endsWith('.threshold.dpdns.org');
-    if (!origin || allowed.includes(origin) || okSuffix) return cb(null, true);
+    const allowed = [...(process.env.CLIENT_URL?.split(',').map((s) => s.trim()) || []), 'https://localhost', 'capacitor://localhost',
+      ...(process.env.NODE_ENV !== 'production' ? ['http://localhost:5173', 'http://localhost'] : [])];
+    if (!origin || allowed.includes(origin)) return cb(null, true);
     return cb(null, false);
   },
   credentials: true,

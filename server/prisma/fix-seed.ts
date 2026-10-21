@@ -2,6 +2,9 @@
 import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 async function main(){
+  if (process.env.NODE_ENV === 'production' || process.env.ALLOW_DEMO_SEED !== 'true') {
+    throw new Error('Demo attendance repair is for disposable local data only. Explicitly set ALLOW_DEMO_SEED=true.');
+  }
   const students = await prisma.student.findMany();
   const atts = await prisma.attendance.findMany({ include: { session: true } });
   const pct = { 'CSA001': 85, 'CSA002': 92, 'CSA003': 60, 'CSA004': 74 };
