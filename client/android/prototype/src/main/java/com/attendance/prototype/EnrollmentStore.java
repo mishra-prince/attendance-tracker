@@ -8,7 +8,7 @@ import org.json.*;
 import javax.crypto.*;
 import javax.crypto.spec.*;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
+import android.os.Build;
 import java.io.*;
 import java.security.*;
 import java.util.Arrays;
@@ -28,7 +28,15 @@ public final class EnrollmentStore {
     }
     public boolean exists() { return file.exists(); }
     public JSONObject read() throws Exception {
-        byte[] data = Files.readAllBytes(file.toPath());
+        byte[] data;
+        try (FileInputStream in = new FileInputStream(file); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[4096]; int n;
+            while ((n=in.read(buffer))!=-1) {
+                if (out.size()+n>65536) throw new IOException("Enrollment file is too large");
+                out.write(buffer,0,n);
+            }
+            data=out.toByteArray();
+        }
         if (data.length < 29) throw new IOException("Enrollment is unreadable; supervised reset is required");
         Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
         cipher.init(Cipher.DECRYPT_MODE, key(), new GCMParameterSpec(128, Arrays.copyOfRange(data,0,12)));
@@ -39,9 +47,10 @@ public final class EnrollmentStore {
     public void save(String name, String roll, String supervisor, char[] pin, float[] embedding) throws Exception {
         byte[] salt = new byte[16]; new SecureRandom().nextBytes(salt);
         JSONArray vector = new JSONArray(); for (float f : embedding) vector.put((double) f);
+        String pinAlgorithm=Build.VERSION.SDK_INT>=26 ? "PBKDF2WithHmacSHA256" : "PBKDF2WithHmacSHA1";
         JSONObject record = new JSONObject().put("name",name).put("roll",roll).put("supervisor",supervisor)
             .put("enrolledAt",System.currentTimeMillis()).put("model","SFace-2021dec").put("template",vector)
-            .put("salt",Base64.encodeToString(salt,Base64.NO_WRAP)).put("pinHash",Base64.encodeToString(derive(pin,salt),Base64.NO_WRAP));
+            .put("pinAlgorithm",pinAlgorithm).put("salt",Base64.encodeToString(salt,Base64.NO_WRAP)).put("pinHash",Base64.encodeToString(derive(pin,salt,pinAlgorithm),Base64.NO_WRAP));
         Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding"); cipher.init(Cipher.ENCRYPT_MODE, key());
         byte[] clear = record.toString().getBytes(StandardCharsets.UTF_8);
         File temp = new File(file.getParentFile(), "enrollment.tmp");
@@ -50,14 +59,15 @@ public final class EnrollmentStore {
         } finally { Arrays.fill(clear, (byte)0); Arrays.fill(pin, '\0'); }
         if (!temp.renameTo(file)) throw new IOException("Could not save enrollment");
     }
-    private byte[] derive(char[] pin, byte[] salt) throws Exception {
+    private byte[] derive(char[] pin, byte[] salt, String algorithm) throws Exception {
+        if (!algorithm.equals("PBKDF2WithHmacSHA256") && !algorithm.equals("PBKDF2WithHmacSHA1")) throw new IOException("Unsupported PIN format");
         PBEKeySpec spec = new PBEKeySpec(pin,salt,210000,256);
-        try { return SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).getEncoded(); }
+        try { return SecretKeyFactory.getInstance(algorithm).generateSecret(spec).getEncoded(); }
         finally { spec.clearPassword(); }
     }
     public boolean unlock(char[] pin) throws Exception {
         JSONObject record = read();
-        try { return MessageDigest.isEqual(Base64.decode(record.getString("pinHash"),Base64.NO_WRAP), derive(pin,Base64.decode(record.getString("salt"),Base64.NO_WRAP))); }
+        try { return MessageDigest.isEqual(Base64.decode(record.getString("pinHash"),Base64.NO_WRAP), derive(pin,Base64.decode(record.getString("salt"),Base64.NO_WRAP),record.optString("pinAlgorithm","PBKDF2WithHmacSHA256"))); }
         finally { Arrays.fill(pin,'\0'); }
     }
     public float[] template() throws Exception {

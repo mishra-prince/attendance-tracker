@@ -1,76 +1,106 @@
 package com.attendance.prototype;
 
-/** A basic active challenge, NOT a validated presentation-attack detector. */
+import java.security.SecureRandom;
+import java.util.*;
+
+/** Basic active action/continuity checks, not validated presentation-attack detection. */
 public final class FaceChallenge {
-    public enum Step { CENTER, BLINK, TURN, RETURN, CAPTURE, EXPIRED }
+    public enum Step { CENTER, ACTION, RETURN, CAPTURE, EXPIRED }
+    public enum Action { BLINK, SMILE, TURN_LEFT, TURN_RIGHT, LOOK_UP, LOOK_DOWN }
     private Step step = Step.CENTER;
+    private final Action[] actions;
     private final long expires;
-    private final int requiredBlinks, direction;
-    private int stable, closed, blinks;
+    private int index, stable, closed, reopened, checkpoint;
     private boolean eyesClosed;
     private Integer track;
     private long lastFrame = -1;
 
-    public FaceChallenge(long now, int requiredBlinks, int direction) {
-        this.expires = now + DemoPolicy.CHALLENGE_MS;
-        this.requiredBlinks = requiredBlinks;
-        this.direction = direction;
+    public static FaceChallenge random(long now, SecureRandom random) {
+        List<Action> pool = new ArrayList<>(Arrays.asList(Action.values()));
+        Collections.shuffle(pool, random);
+        return new FaceChallenge(now, pool.get(0), pool.get(1));
+    }
+    public FaceChallenge(long now, Action... actions) {
+        if (actions.length < 1 || actions.length > 3 || Arrays.asList(actions).contains(null)
+            || new HashSet<>(Arrays.asList(actions)).size() != actions.length) throw new IllegalArgumentException("Invalid action sequence");
+        this.actions = actions.clone(); expires = now + DemoPolicy.CHALLENGE_MS;
     }
     public Step step() { return step; }
+    public int checkpoint() { return checkpoint; }
+    public Action[] sequence() { return actions.clone(); }
     public void missing() {
-        step = Step.CENTER; stable = closed = blinks = 0; eyesClosed = false; track = null;
+        step = Step.CENTER; index = stable = closed = reopened = 0; eyesClosed = false; track = null;
+        // Serial stays monotonic across continuity resets.
     }
-    public Step observe(long now, int count, Integer trackingId, float yaw, Float left, Float right) {
+    public Step observe(long now, int count, Integer trackingId, float yaw, float pitch, Float left, Float right, Float smile) {
         if (now >= expires || step == Step.EXPIRED) { step = Step.EXPIRED; return step; }
-        if (count != 1 || trackingId == null || !Float.isFinite(yaw)) { missing(); return step; }
+        if (count != 1 || trackingId == null || !Float.isFinite(yaw) || !Float.isFinite(pitch)) { missing(); return step; }
         if (lastFrame >= 0 && (now <= lastFrame || now - lastFrame > 1500)) missing();
         if (track != null && !track.equals(trackingId)) missing();
         track = trackingId; lastFrame = now;
-        boolean eyesAvailable = left != null && right != null && Float.isFinite(left) && Float.isFinite(right);
-        // ML Kit only classifies eyes reliably on frontal faces; a turn may return null.
-        if (!eyesAvailable && step != Step.TURN && step != Step.RETURN) {
-            missing(); return step;
-        }
-        boolean open = eyesAvailable && left > .65f && right > .65f;
-        boolean shut = eyesAvailable && left < .30f && right < .30f;
-        boolean centered = Math.abs(yaw) < 12;
+        boolean eyes = left != null && right != null && Float.isFinite(left) && Float.isFinite(right);
+        boolean expression = smile != null && Float.isFinite(smile);
+        boolean open = eyes && left > .65f && right > .65f;
+        boolean shut = eyes && left < .30f && right < .30f;
+        boolean frontal = Math.abs(yaw) < 12 && Math.abs(pitch) < 12;
+        boolean neutral = frontal && open && expression && smile < .35f;
         switch (step) {
             case CENTER:
-                stable = centered && open ? stable + 1 : 0;
-                if (stable >= 3) { step = Step.BLINK; stable = 0; }
+                stable = neutral ? stable + 1 : 0;
+                if (stable >= 3) { step = Step.ACTION; stable = 0; checkpoint++; }
                 break;
-            case BLINK:
-                if (!centered) { missing(); break; }
-                if (shut) { closed++; if (closed >= 2) eyesClosed = true; stable = 0; }
-                else if (open) {
-                    if (eyesClosed && ++stable >= 2) {
-                        blinks++; closed = stable = 0; eyesClosed = false;
-                        if (blinks >= requiredBlinks) step = Step.TURN;
-                    } else if (!eyesClosed) closed = 0;
-                } else { closed = 0; stable = 0; }
-                break;
-            case TURN:
-                stable = yaw * direction > 20 ? stable + 1 : 0;
-                if (stable >= 3) { step = Step.RETURN; stable = 0; }
+            case ACTION:
+                boolean hit = false;
+                switch (actions[index]) {
+                    case BLINK:
+                        if (!frontal || !eyes) { stable = closed = reopened = 0; eyesClosed = false; break; }
+                        if (shut) { closed++; reopened = 0; if (closed >= 2) eyesClosed = true; }
+                        else if (open) {
+                            if (eyesClosed && ++reopened >= 2) hit = true;
+                            else if (!eyesClosed) closed = 0;
+                        } else { closed = reopened = 0; }
+                        break;
+                    case SMILE: hit = frontal && open && expression && smile > .80f; break;
+                    // Front preview is mirrored; inference pixels are not.
+                    case TURN_LEFT: hit = yaw > 20 && Math.abs(pitch) < 15; break;
+                    case TURN_RIGHT: hit = yaw < -20 && Math.abs(pitch) < 15; break;
+                    case LOOK_UP: hit = pitch > 16 && Math.abs(yaw) < 12; break;
+                    case LOOK_DOWN: hit = pitch < -16 && Math.abs(yaw) < 12; break;
+                    default: break;
+                }
+                if (actions[index] == Action.BLINK ? hit : (stable = hit ? stable + 1 : 0) >= 3) {
+                    step = Step.RETURN; stable = closed = reopened = 0; eyesClosed = false;
+                }
                 break;
             case RETURN:
-                stable = centered && open ? stable + 1 : 0;
-                if (stable >= 3) step = Step.CAPTURE;
+                stable = neutral ? stable + 1 : 0;
+                if (stable >= 3) {
+                    checkpoint++; stable = 0; index++;
+                    step = index == actions.length ? Step.CAPTURE : Step.ACTION;
+                }
                 break;
             case CAPTURE:
-                if (!centered || !open) { step = Step.RETURN; stable = 0; }
+                if (!neutral) missing();
                 break;
             default: break;
         }
         return step;
     }
     public String instruction() {
+        String progress = "Action " + (index + 1) + " of " + actions.length + ": ";
         switch (step) {
-            case CENTER: return "Look straight at the camera. Keep both eyes open.";
-            case BLINK: return "Slowly blink " + (requiredBlinks - blinks) + " time(s). Close, then open both eyes.";
-            // CameraX mirrors the front-camera preview; inference uses unmirrored pixels.
-            case TURN: return direction > 0 ? "Slowly turn your nose toward the LEFT edge of the preview." : "Slowly turn your nose toward the RIGHT edge of the preview.";
-            case RETURN: return "Return to the centre. Keep your eyes open.";
+            case CENTER: return "Look straight, relax your smile and keep both eyes open.";
+            case ACTION:
+                switch (actions[index]) {
+                    case BLINK: return progress + "blink slowly once. Close, then reopen both eyes.";
+                    case SMILE: return progress + "give a clear smile and hold it briefly.";
+                    case TURN_LEFT: return progress + "turn your nose towards the LEFT edge of the preview.";
+                    case TURN_RIGHT: return progress + "turn your nose towards the RIGHT edge of the preview.";
+                    case LOOK_UP: return progress + "raise your chin slightly and look up.";
+                    case LOOK_DOWN: return progress + "lower your chin slightly and look down.";
+                    default: return progress;
+                }
+            case RETURN: return "Return to centre, relax your smile and open both eyes.";
             case CAPTURE: return "Hold still — comparing three face samples.";
             default: return "Check timed out. Retry in good light.";
         }

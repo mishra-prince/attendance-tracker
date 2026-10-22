@@ -32,6 +32,11 @@ public final class PrototypeActivity extends ComponentActivity {
     private static final ParcelUuid SERVICE = ParcelUuid.fromString("a2f2a5d0-558e-4c89-993a-d93215ef98f1");
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    // Late detector callbacks must still recycle their frame after the activity closes.
+    private final Executor detectorCallbacks = command -> {
+        try { worker.execute(command); }
+        catch (RejectedExecutionException stopped) { command.run(); }
+    };
     private final SecureRandom random = new SecureRandom();
     private final RoomEvidence room = new RoomEvidence();
     private EnrollmentStore store;
@@ -57,6 +62,7 @@ public final class PrototypeActivity extends ComponentActivity {
         final List<float[]> samples = new ArrayList<>();
         final float[] reference;
         float[] challengeIdentity;
+        int lastCheckpoint;
         double minimumScore = 1;
         Attempt(FaceChallenge challenge, float[] reference) { this.challenge=challenge; this.reference=reference; }
     }
@@ -71,8 +77,8 @@ public final class PrototypeActivity extends ComponentActivity {
             .enableTracking().setMinFaceSize(.18f).build());
         showHome();
         worker.execute(() -> {
-            try { engine = new FaceEngine(this); main.post(() -> { ready = true; message = "Ready. Set up a supervised demo identity first."; showHome(); }); }
-            catch (Exception | LinkageError error) { main.post(() -> { message = "Face models unavailable: " + error.getMessage() + ". Use an ARM Android phone."; showHome(); }); }
+            try { engine = new FaceEngine(this); main.post(() -> { if(isFinishing() || isDestroyed()) return; ready = true; message = "Ready. Set up a supervised demo identity first."; showHome(); }); }
+            catch (Exception | LinkageError error) { main.post(() -> { if(isFinishing() || isDestroyed()) return; message = "Face models unavailable: " + error.getMessage() + ". Use an ARM Android phone."; showHome(); }); }
         });
     }
     private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
@@ -105,7 +111,7 @@ public final class PrototypeActivity extends ComponentActivity {
         button.setOnClickListener(v -> action.run()); return button;
     }
     private void showHome() {
-        page("THRESHOLD / SUBMISSION PROTOTYPE", "Presence, with identity.", "Offline Android demo • ESP32-S3 + your phone");
+        page("THRESHOLD / CLASSROOM DEMO", "Presence, with identity.", "Inside your Threshold app • ESP32-S3 + face matching");
         String identity = "01  /  SUPERVISED DEMO IDENTITY\nNot enrolled on this phone";
         if (store.exists()) {
             try { JSONObject record=store.read(); identity="01  /  SUPERVISED DEMO IDENTITY\n"+record.getString("name")+" · "+record.getString("roll")+"\nEncrypted face template saved locally"; }
@@ -113,7 +119,7 @@ public final class PrototypeActivity extends ComponentActivity {
         }
         card(identity);
         roomText=card("02  /  ESP32 ROOM SIGNAL\nTap Find ESP32 to scan for inside beacon A17C");
-        card("03  /  IDENTITY CHECK\nReal SFace matching + random blink and head turn\nCamera runs only during a check");
+        card("03  /  IDENTITY CHECK\nReal SFace matching + two random actions\nTurn, look up/down, smile or blink\nCamera runs only during a check");
         statusText=card(message);
         button("Find ESP32",false,this::beginScan);
         button(store.exists() ? "Supervisor: manage demo identity" : "Supervisor: enrol demo identity",false,this::supervisorGate).setEnabled(ready);
@@ -123,22 +129,27 @@ public final class PrototypeActivity extends ComponentActivity {
             beginFace("face-test");
         }).setEnabled(ready);
         button("Demo guide & limitations",false,this::guide);
-        label("Prototype results stay on this phone. No institutional attendance is awarded. Keep the app in the foreground.",12,ASH);
+        button("Back to Threshold portal",false,this::finish);
+        label("Demo results stay on this phone. No institutional attendance is awarded. Keep the app in the foreground.",12,ASH);
     }
     private void guide() {
         new AlertDialog.Builder(this).setTitle("Tomorrow’s demonstration")
-            .setMessage("1. Flash RoomLabBeacon on the S3 (role 1, A17C), then power it by USB.\n\n2. Supervisor verifies a consenting volunteer’s ID and saves their face with a private PIN.\n\n3. Enable Bluetooth and find the ESP32. Start the 60-second class. Complete the join face check and one randomly timed middle check.\n\n4. Try a different person and switch off the ESP32 to show neutral review outcomes.\n\nThis is a separate Android prototype. BLE reaches through walls and cannot reject a corridor seat. The unsigned lab beacon can be copied. Blink/turn challenges are basic and do not stop all video/deepfake/camera-injection attacks. No 95% result is claimed. iPhone and locked-phone attendance are not implemented. Initial PIN setup is a demo convention, not authenticated college staff access. Uninstall or supervised delete removes local identity.")
+            .setMessage("1. Flash RoomLabBeacon on the S3 (role 1, A17C), then power it by USB.\n\n2. Supervisor verifies a consenting volunteer’s ID and saves their face with a private PIN.\n\n3. Enable Bluetooth and find the ESP32. Start the 60-second class. Complete the join face check and one randomly timed middle check.\n\n4. Try a different person and switch off the ESP32 to show neutral review outcomes.\n\nThis offline classroom demo is inside the same Threshold app. Portal attendance is separate. BLE reaches through walls and cannot reject a corridor seat. The unsigned lab beacon can be copied. Random action challenges are basic and do not stop all video/deepfake/camera-injection attacks. No 95% result is claimed. iPhone and locked-phone attendance are not implemented. Initial PIN setup is a demo convention, not authenticated college staff access. Uninstall or supervised delete removes local identity.")
             .setPositiveButton("Understood",null).show();
     }
     private void notice(String text) { message=text; if (statusText!=null) statusText.setText(text); Toast.makeText(this,text,Toast.LENGTH_LONG).show(); }
     private String[] neededPermissions() {
         return Build.VERSION.SDK_INT >= 31
-            ? new String[]{Manifest.permission.CAMERA,Manifest.permission.BLUETOOTH_SCAN,Manifest.permission.BLUETOOTH_CONNECT}
-            : new String[]{Manifest.permission.CAMERA,Manifest.permission.ACCESS_FINE_LOCATION};
+            ? new String[]{Manifest.permission.CAMERA,Manifest.permission.BLUETOOTH_SCAN,Manifest.permission.BLUETOOTH_CONNECT,Manifest.permission.ACCESS_COARSE_LOCATION,Manifest.permission.ACCESS_FINE_LOCATION}
+            : new String[]{Manifest.permission.CAMERA,Manifest.permission.ACCESS_COARSE_LOCATION,Manifest.permission.ACCESS_FINE_LOCATION};
     }
     private boolean permissions() {
+        return permissions(true);
+    }
+    private boolean permissions(boolean includeBluetooth) {
         List<String> needed=new ArrayList<>();
-        for(String permission:neededPermissions()) if(checkSelfPermission(permission)!=PackageManager.PERMISSION_GRANTED) needed.add(permission);
+        String[] required=includeBluetooth ? neededPermissions() : new String[]{Manifest.permission.CAMERA};
+        for(String permission:required) if(checkSelfPermission(permission)!=PackageManager.PERMISSION_GRANTED) needed.add(permission);
         if(needed.isEmpty()) return true;
         requestPermissions(needed.toArray(new String[0]),45); return false;
     }
@@ -155,8 +166,8 @@ public final class PrototypeActivity extends ComponentActivity {
             if(!adapter.isEnabled()) { startActivity(new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)); return; }
             android.location.LocationManager location=getSystemService(android.location.LocationManager.class);
             boolean locationEnabled=Build.VERSION.SDK_INT>=28 ? location.isLocationEnabled() : location.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER) || location.isProviderEnabled(android.location.LocationManager.NETWORK_PROVIDER);
-            if(Build.VERSION.SDK_INT<31 && !locationEnabled) {
-                notice("This Android version also needs Location services enabled for Bluetooth scanning."); startActivity(new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)); return;
+            if(!locationEnabled) {
+                notice("Enable Location services for this classroom Bluetooth scan. No GPS coordinates are collected."); startActivity(new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)); return;
             }
             if(scanning) { notice("Scanning for inside beacon A17C…"); return; }
             scanner=adapter.getBluetoothLeScanner();
@@ -215,7 +226,7 @@ public final class PrototypeActivity extends ComponentActivity {
         })); dialog.show();
     }
     private void enrollmentForm() {
-        if(!permissions()) return;
+        if(!permissions(false)) return;
         LinearLayout box=new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(24),0,dp(24),0);
         EditText name=field(box,"Volunteer name",false),roll=field(box,"Demo roll number",false),staff=field(box,"Supervising staff name",false),pin=field(box,"Private supervisor PIN (6+ digits)",true);
         CheckBox consent=new CheckBox(this); consent.setText("I am the demo supervisor. I checked the volunteer’s ID in person and have their consent to save a local face template."); box.addView(consent);
@@ -273,17 +284,17 @@ public final class PrototypeActivity extends ComponentActivity {
         showHome();
     }
     private void beginFace(String purpose) {
-        if(!ready || !permissions()) return;
+        if(!ready || !permissions(purpose.equals("join") || purpose.equals("middle"))) return;
         if((purpose.equals("join") || purpose.equals("middle")) && (!scanning || !room.fresh(SystemClock.elapsedRealtime()))) { notice("No fresh ESP32 signal. Restore Bluetooth/power, then retry."); return; }
         final float[] reference;
         try { reference=purpose.equals("enroll") ? null : store.template(); }
         catch(Exception error) { notice("No readable face enrollment. Visit supervisor setup."); return; }
         stopCamera(); cameraPurpose=purpose;
-        Attempt attempt=new Attempt(new FaceChallenge(SystemClock.elapsedRealtime(),1+random.nextInt(2),random.nextBoolean()?1:-1),reference);
+        Attempt attempt=new Attempt(FaceChallenge.random(SystemClock.elapsedRealtime(),random),reference);
         page("THRESHOLD / LIVE IDENTITY",purpose.equals("enroll") ? "Meet your demo identity." : "A quick face check.","Face a light source. Keep one face visible. No photo is saved.");
         preview=new PreviewView(this); preview.setImplementationMode(PreviewView.ImplementationMode.COMPATIBLE);
         content.addView(preview,new LinearLayout.LayoutParams(-1,dp(290)));
-        instruction=card(attempt.challenge.instruction()); statusText=label("Random blink + turn · offline face comparison",13,ASH);
+        instruction=card(attempt.challenge.instruction()); statusText=label("Two randomized actions · offline face comparison",13,ASH);
         button("Cancel check",false,() -> faceFailure("Face check cancelled. Retry when ready."));
         brightness(-1); getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         int token=++generation; cameraRunning=true; busy=false;
@@ -310,18 +321,17 @@ public final class PrototypeActivity extends ComponentActivity {
             Matrix rotation=new Matrix(); rotation.postRotate(proxy.getImageInfo().getRotationDegrees());
             Bitmap frame=Bitmap.createBitmap(raw,0,0,raw.getWidth(),raw.getHeight(),rotation,false);
             if(frame!=raw) raw.recycle(); proxy.close();
-            detector.process(InputImage.fromBitmap(frame,0)).addOnSuccessListener(worker,faces -> {
+            detector.process(InputImage.fromBitmap(frame,0)).addOnSuccessListener(detectorCallbacks,faces -> {
                 try {
                     if(token!=generation || !cameraRunning) return;
                     Face face=faces.size()==1 ? faces.get(0) : null;
                     FaceChallenge.Step previous=attempt.challenge.step();
-                    FaceChallenge.Step step=attempt.challenge.observe(SystemClock.elapsedRealtime(),faces.size(),face==null?null:face.getTrackingId(),face==null?0:face.getHeadEulerAngleY(),face==null?null:face.getLeftEyeOpenProbability(),face==null?null:face.getRightEyeOpenProbability());
+                    FaceChallenge.Step step=attempt.challenge.observe(SystemClock.elapsedRealtime(),faces.size(),face==null?null:face.getTrackingId(),face==null?0:face.getHeadEulerAngleY(),face==null?0:face.getHeadEulerAngleX(),face==null?null:face.getLeftEyeOpenProbability(),face==null?null:face.getRightEyeOpenProbability(),face==null?null:face.getSmilingProbability());
                     if(step!=FaceChallenge.Step.CAPTURE || previous!=FaceChallenge.Step.CAPTURE) attempt.samples.clear();
                     String hint=faces.size()!=1 ? "Show exactly one face. Check your lighting." : attempt.challenge.instruction();
                     main.post(() -> { if(token==generation && instruction!=null) instruction.setText(hint); });
                     if(step==FaceChallenge.Step.EXPIRED) { main.post(() -> { if(token==generation) faceFailure("Face check expired. Retry."); }); return; }
-                    boolean identityCheckpoint = previous==FaceChallenge.Step.CENTER && step==FaceChallenge.Step.BLINK
-                        || previous==FaceChallenge.Step.BLINK && step==FaceChallenge.Step.TURN;
+                    boolean identityCheckpoint = attempt.challenge.checkpoint() > attempt.lastCheckpoint;
                     if(step!=FaceChallenge.Step.CAPTURE && !identityCheckpoint) return;
                     float[] vector=engine.embedding(frame);
                     double score=attempt.reference==null ? 1 : FaceMath.cosine(attempt.reference,vector);
@@ -332,8 +342,9 @@ public final class PrototypeActivity extends ComponentActivity {
                         main.post(() -> { if(token==generation) faceFailure("Face changed during the challenge. Retry with the same enrolled person throughout."); }); return;
                     }
                     if(attempt.challengeIdentity==null) attempt.challengeIdentity=vector.clone();
+                    attempt.lastCheckpoint=attempt.challenge.checkpoint();
                     attempt.minimumScore=Math.min(attempt.minimumScore,score);
-                    if(identityCheckpoint) return;
+                    if(step!=FaceChallenge.Step.CAPTURE) return;
                     attempt.samples.add(vector);
                     if(attempt.samples.size()>=DemoPolicy.SAMPLES) {
                         float[] template=FaceMath.average(attempt.samples);
@@ -343,7 +354,7 @@ public final class PrototypeActivity extends ComponentActivity {
                     attempt.samples.clear(); attempt.challenge.missing(); attempt.challengeIdentity=null;
                     main.post(() -> { if(token==generation && instruction!=null) instruction.setText("Could not compare this frame. "+error.getMessage()); });
                 } finally { frame.recycle(); busy=false; }
-            }).addOnFailureListener(worker,error -> {
+            }).addOnFailureListener(detectorCallbacks,error -> {
                 frame.recycle(); busy=false;
                 main.post(() -> { if(token==generation) faceFailure("Face detector unavailable. Retry or use a supported Android phone."); });
             });
@@ -359,7 +370,7 @@ public final class PrototypeActivity extends ComponentActivity {
             catch(Exception error) { clearPendingPin(); message="Could not save enrollment. Repeat supervised setup. "+error.getMessage(); showHome(); return; }
             clearPendingPin(); message="Supervised DEMO face enrollment saved. No raw photo was stored. Now find the ESP32."; showHome(); return;
         }
-        if(purpose.equals("face-test")) { message=String.format(Locale.US,"FACE MATCHED · DEMO ONLY\nThree samples matched the local enrollment. Minimum cosine %.3f; experimental threshold %.2f. Blink/turn completed. No attendance or room claim.",minimumScore,DemoPolicy.MATCH_COSINE); showHome(); return; }
+        if(purpose.equals("face-test")) { message=String.format(Locale.US,"FACE MATCHED · DEMO ONLY\nThree samples matched the local enrollment. Minimum cosine %.3f; experimental threshold %.2f. Two random actions completed. No attendance or room claim.",minimumScore,DemoPolicy.MATCH_COSINE); showHome(); return; }
         if(!scanning || !room.fresh(SystemClock.elapsedRealtime())) { faceFailure("Face matched, but no fresh ESP32 signal remains. Restore it and retry."); return; }
         if(purpose.equals("join")) {
             joinPassed=true; classStart=SystemClock.elapsedRealtime(); midAt=20_000+random.nextInt(15_001);

@@ -7,6 +7,7 @@ import {
 } from '../../lib/features';
 import { Page } from '../../components/motion';
 import { RowSkeleton } from '../../components/skeletons';
+import ClassroomDemoButton from '../../components/ClassroomDemoButton';
 
 // This is the ROOT-OF-TRUST station. Staff verify institutional identity in person,
 // then record the staff observation. This page does not run camera capture or face inference.
@@ -77,10 +78,11 @@ export default function SupervisedEnrollment() {
         <ShieldCheck size={20} className="text-signal" />
         <div>
           <div className="text-bone text-lg font-semibold">Supervised Enrollment</div>
-          <div className="text-ash text-sm mt-0.5">Record an in-person staff observation. Automatic face verification is available in the separate Android submission prototype.</div>
+          <div className="text-ash text-sm mt-0.5">Record an in-person staff observation. Threshold’s classroom demo includes local face matching; its templates do not update this institutional enrollment.</div>
         </div>
       </div>
 
+      <ClassroomDemoButton />
       {msg && <div className="glass-medium rounded-2xl p-4 text-sm text-emerald-300">{msg}</div>}
       {err && <div role="alert" className="text-signal text-sm">{err}</div>}
       {loading && <RowSkeleton rows={5} />}

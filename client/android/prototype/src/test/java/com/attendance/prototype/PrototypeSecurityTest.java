@@ -3,71 +3,98 @@ package com.attendance.prototype;
 import org.junit.Test;
 import static org.junit.Assert.*;
 import java.util.*;
+import java.security.SecureRandom;
+import static com.attendance.prototype.FaceChallenge.Action.*;
 
 public class PrototypeSecurityTest {
     private long clock;
-    private FaceChallenge.Step frame(FaceChallenge c,int id,float yaw,float eye) {
-        clock+=150; return c.observe(clock,1,id,yaw,eye,eye);
+    private FaceChallenge.Step frame(FaceChallenge c,int id,float yaw,float pitch,Float eye,Float smile) {
+        clock+=150; return c.observe(clock,1,id,yaw,pitch,eye,eye,smile);
     }
-    private void center(FaceChallenge c) { for(int i=0;i<3;i++) frame(c,1,0,.9f); }
-    private void blink(FaceChallenge c) {
-        for(int i=0;i<2;i++) frame(c,1,0,.1f);
-        for(int i=0;i<2;i++) frame(c,1,0,.9f);
+    private void neutral(FaceChallenge c) { for(int i=0;i<3;i++) frame(c,1,0,0,.9f,.1f); }
+    private void perform(FaceChallenge c,FaceChallenge.Action action) {
+        if(action==BLINK) {
+            for(int i=0;i<2;i++) frame(c,1,0,0,.1f,.1f);
+            for(int i=0;i<2;i++) frame(c,1,0,0,.9f,.1f);
+        } else for(int i=0;i<3;i++) {
+            float yaw=action==TURN_LEFT ? 25 : action==TURN_RIGHT ? -25 : 0;
+            float pitch=action==LOOK_UP ? 20 : action==LOOK_DOWN ? -20 : 0;
+            frame(c,1,yaw,pitch,action==SMILE ? .9f : null,action==SMILE ? .95f : null);
+        }
     }
-    private void finish(FaceChallenge c) {
-        for(int i=0;i<3;i++) frame(c,1,25,.9f);
-        for(int i=0;i<3;i++) frame(c,1,0,.9f);
+    @Test public void allThirtyDistinctActionOrdersCanComplete() {
+        for(FaceChallenge.Action first:FaceChallenge.Action.values()) for(FaceChallenge.Action second:FaceChallenge.Action.values()) if(first!=second) {
+            clock=0; FaceChallenge c=new FaceChallenge(0,first,second); neutral(c);
+            perform(c,first); assertEquals(FaceChallenge.Step.RETURN,c.step()); neutral(c);
+            perform(c,second); assertEquals(FaceChallenge.Step.RETURN,c.step()); neutral(c);
+            assertEquals(FaceChallenge.Step.CAPTURE,c.step()); assertEquals(3,c.checkpoint());
+        }
     }
-    @Test public void fullLiveSequenceCanCapture() {
-        FaceChallenge c=new FaceChallenge(0,1,1); center(c); blink(c); finish(c);
-        assertEquals(FaceChallenge.Step.CAPTURE,c.step());
+    @Test public void randomSequenceAlwaysContainsTwoDistinctActions() {
+        SecureRandom random=new SecureRandom();
+        for(int i=0;i<100;i++) { FaceChallenge.Action[] a=FaceChallenge.random(0,random).sequence(); assertEquals(2,a.length); assertNotEquals(a[0],a[1]); }
     }
     @Test public void stillOpenEyesCannotSatisfyBlink() {
-        FaceChallenge c=new FaceChallenge(0,1,1);
-        for(int i=0;i<50;i++) frame(c,1,0,.9f);
-        assertEquals(FaceChallenge.Step.BLINK,c.step());
+        FaceChallenge c=new FaceChallenge(0,BLINK); for(int i=0;i<50;i++) frame(c,1,0,0,.9f,.1f);
+        assertEquals(FaceChallenge.Step.ACTION,c.step());
     }
     @Test public void singleClosedFrameCannotCompleteBlink() {
-        FaceChallenge c=new FaceChallenge(0,1,1); center(c); frame(c,1,0,.1f);
-        for(int i=0;i<3;i++) frame(c,1,0,.9f);
-        assertEquals(FaceChallenge.Step.BLINK,c.step());
+        FaceChallenge c=new FaceChallenge(0,BLINK); neutral(c); frame(c,1,0,0,.1f,.1f); neutral(c);
+        assertEquals(FaceChallenge.Step.ACTION,c.step());
     }
-    @Test public void challengeCanRequireTwoBlinks() {
-        FaceChallenge c=new FaceChallenge(0,2,1); center(c); blink(c);
-        assertEquals(FaceChallenge.Step.BLINK,c.step()); blink(c); finish(c);
-        assertEquals(FaceChallenge.Step.CAPTURE,c.step());
+    @Test public void performingFutureActionDoesNotAdvanceSequence() {
+        FaceChallenge c=new FaceChallenge(0,SMILE,TURN_LEFT); neutral(c); perform(c,TURN_LEFT);
+        assertEquals(FaceChallenge.Step.ACTION,c.step()); assertEquals(1,c.checkpoint());
     }
     @Test public void wrongTurnDoesNotPass() {
-        FaceChallenge c=new FaceChallenge(0,1,1); center(c); blink(c);
-        for(int i=0;i<5;i++) frame(c,1,-25,.9f);
-        assertEquals(FaceChallenge.Step.TURN,c.step());
+        FaceChallenge c=new FaceChallenge(0,TURN_LEFT); neutral(c); perform(c,TURN_RIGHT);
+        assertEquals(FaceChallenge.Step.ACTION,c.step());
+    }
+    @Test public void smileNeedsNeutralReturnBeforeCapture() {
+        FaceChallenge c=new FaceChallenge(0,SMILE); neutral(c); perform(c,SMILE);
+        for(int i=0;i<6;i++) frame(c,1,0,0,.9f,.95f);
+        assertEquals(FaceChallenge.Step.RETURN,c.step()); neutral(c); assertEquals(FaceChallenge.Step.CAPTURE,c.step());
+    }
+    @Test public void smileAlreadyPresentAtStartCannotPassBaseline() {
+        FaceChallenge c=new FaceChallenge(0,SMILE); for(int i=0;i<8;i++) frame(c,1,0,0,.9f,.95f);
+        assertEquals(FaceChallenge.Step.CENTER,c.step());
     }
     @Test public void changedTrackedFaceResetsChallenge() {
-        FaceChallenge c=new FaceChallenge(0,1,1); center(c); blink(c);
-        frame(c,2,25,.9f); assertEquals(FaceChallenge.Step.CENTER,c.step());
+        FaceChallenge c=new FaceChallenge(0,TURN_LEFT); neutral(c); frame(c,2,25,0,null,null);
+        assertEquals(FaceChallenge.Step.CENTER,c.step());
     }
     @Test public void secondFaceResetsChallenge() {
-        FaceChallenge c=new FaceChallenge(0,1,1); center(c); blink(c);
-        c.observe(clock+150,2,1,0,.9f,.9f); assertEquals(FaceChallenge.Step.CENTER,c.step());
+        FaceChallenge c=new FaceChallenge(0,SMILE); neutral(c);
+        c.observe(clock+150,2,1,0,0,.9f,.9f,.1f); assertEquals(FaceChallenge.Step.CENTER,c.step());
     }
-    @Test public void missingEyeClassificationCannotPass() {
-        FaceChallenge c=new FaceChallenge(0,1,1); center(c);
-        c.observe(clock+150,1,1,0,null,.9f); assertEquals(FaceChallenge.Step.CENTER,c.step());
+    @Test public void missingClassificationCannotPassBaseline() {
+        FaceChallenge c=new FaceChallenge(0,SMILE); for(int i=0;i<8;i++) frame(c,1,0,0,null,null);
+        assertEquals(FaceChallenge.Step.CENTER,c.step());
+    }
+    @Test public void nonFrontalClassificationsMayBeUnavailableForPose() {
+        FaceChallenge c=new FaceChallenge(0,LOOK_UP); neutral(c); perform(c,LOOK_UP);
+        assertEquals(FaceChallenge.Step.RETURN,c.step()); neutral(c); assertEquals(FaceChallenge.Step.CAPTURE,c.step());
     }
     @Test public void stalledFramesResetContinuity() {
-        FaceChallenge c=new FaceChallenge(0,1,1); center(c); blink(c);
-        clock+=2000; frame(c,1,25,.9f); assertEquals(FaceChallenge.Step.CENTER,c.step());
+        FaceChallenge c=new FaceChallenge(0,SMILE); neutral(c); clock+=2000; frame(c,1,0,0,.9f,.95f);
+        assertEquals(FaceChallenge.Step.CENTER,c.step());
     }
-    @Test public void nonFrontalEyesMayBeUnavailableDuringTurn() {
-        FaceChallenge c=new FaceChallenge(0,1,1); center(c); blink(c);
-        for(int i=0;i<3;i++) { clock+=150; c.observe(clock,1,1,25,null,null); }
-        assertEquals(FaceChallenge.Step.RETURN,c.step());
-        for(int i=0;i<3;i++) frame(c,1,0,.9f);
-        assertEquals(FaceChallenge.Step.CAPTURE,c.step());
+    @Test public void nonFinitePoseCannotPass() {
+        FaceChallenge c=new FaceChallenge(0,LOOK_UP); neutral(c); frame(c,1,0,Float.NaN,.9f,.1f);
+        assertEquals(FaceChallenge.Step.CENTER,c.step());
     }
     @Test public void expiredChallengeCannotBeReused() {
-        FaceChallenge c=new FaceChallenge(0,1,1); center(c); blink(c); finish(c);
-        assertEquals(FaceChallenge.Step.EXPIRED,c.observe(30_000,1,1,0,.9f,.9f));
+        FaceChallenge c=new FaceChallenge(0,SMILE); neutral(c); perform(c,SMILE); neutral(c);
+        assertEquals(FaceChallenge.Step.EXPIRED,c.observe(30_000,1,1,0,0,.9f,.9f,.1f));
+    }
+    @Test public void checkpointSerialRemainsMonotonicAfterReset() {
+        FaceChallenge c=new FaceChallenge(0,SMILE); neutral(c); assertEquals(1,c.checkpoint());
+        c.missing(); neutral(c); assertEquals(2,c.checkpoint());
+    }
+    @Test(expected=IllegalArgumentException.class) public void duplicateActionsAreRejected() { new FaceChallenge(0,SMILE,SMILE); }
+    @Test public void actionSequenceCannotBeMutatedExternally() {
+        FaceChallenge c=new FaceChallenge(0,SMILE,LOOK_UP); FaceChallenge.Action[] copy=c.sequence(); copy[0]=BLINK;
+        assertEquals(SMILE,c.sequence()[0]);
     }
     @Test public void noBeaconAndExpiredBeaconAreNotFresh() {
         RoomEvidence room=new RoomEvidence(); assertFalse(room.fresh(0)); room.observe(100);

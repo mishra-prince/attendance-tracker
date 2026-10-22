@@ -4,12 +4,13 @@ The files here are development and calibration artifacts. The source code is mai
 
 ## Android downloads
 
-- [**Submission prototype 0.2.0 — download APK**](https://github.com/mishra-prince/attendance-tracker/raw/refs/heads/master/downloads/threshold-prototype-0.2.0-test.apk). Separate offline Android 8+ app with actual local face matching, basic randomized blink/turn checks, ESP32 beacon detection and a 60-second class demonstration. [Submission guide](../prototype/SUBMISSION-GUIDE.md), [build evidence and pending physical tests](../prototype/BUILD-REPORT.md), [Mac S3 uploader](../prototype/UPLOAD-S3-MAC.command). No server required; no institutional attendance is awarded. Android only; corridor containment and robust anti-spoof protection are not established. The connected board still needs the user-run upload and a real-phone reception check.
-- [Attendance app 1.1.0 — download APK](https://github.com/mishra-prince/attendance-tracker/raw/refs/heads/master/downloads/threshold-1.1.0-test.apk). Native Bluetooth check-in, refreshed screens and hardened login/session handling. Requires the updated backend and institution configuration. Both phones must keep their Bluetooth screens open.
+- [**Latest Threshold 1.2.0 — download APK**](https://github.com/mishra-prince/attendance-tracker/raw/refs/heads/master/downloads/threshold-1.2.0-test.apk). Face recognition, two randomized actions and an ESP32 class demo inside the original `com.attendance.tracker` app. Updates the published 1.1.0 test APK in place. Tap **Face & ESP32 classroom demo** on the login page; no account/server required for that demo. Its local identity/evidence is separate from real institutional attendance. [Current setup and S3 verification-only recovery](../prototype/SUBMISSION-GUIDE.md), [build report](../prototype/BUILD-REPORT.md), [current checksums](THRESHOLD-1.2-SHA256SUMS.txt).
+- [Historical separate prototype 0.2.0 APK](https://github.com/mishra-prince/attendance-tracker/raw/refs/heads/master/downloads/threshold-prototype-0.2.0-test.apk). Superseded for this submission by the same-app Threshold 1.2.0 build. Retained as a dated snapshot; its checksums/source paths describe that earlier version. No new separate prototype APK is being delivered.
+- [Previous attendance app 1.1.0 APK](https://github.com/mishra-prince/attendance-tracker/raw/refs/heads/master/downloads/threshold-1.1.0-test.apk). Historical baseline, superseded by the same-package 1.2.0 build. Native teacher Bluetooth check-in requires the updated backend and institution configuration. Both phones must keep their Bluetooth screens open.
 - [Threshold Room Lab 0.1.0 — download APK](https://github.com/mishra-prince/attendance-tracker/raw/refs/heads/master/downloads/threshold-room-lab-0.1.0-test.apk). Separate offline application for six-second acoustic/Bluetooth measurements. No account or attendance server required. It does not award attendance, verify a face, or operate with the screen locked.
 - [Complete Room Lab pilot kit](https://github.com/mishra-prince/attendance-tracker/raw/refs/heads/master/downloads/threshold-room-lab-0.1.0-pilot-kit.zip). Includes the calibration APK, desktop speaker emitter, source, firmware, guides and checksums.
 
-Both APKs are debug-signed for testing. Production distribution needs the institution's protected release-signing setup.
+All APKs are debug-signed for testing. Production distribution needs the institution's protected release-signing setup.
 
 ## Hardware and room calibration
 
@@ -18,7 +19,7 @@ Both APKs are debug-signed for testing. Production distribution needs the instit
 - [Room Lab quickstart](ROOM-LAB-QUICKSTART.md).
 - [Offline speaker emitter HTML — download and open locally](https://github.com/mishra-prince/attendance-tracker/raw/refs/heads/master/downloads/room-lab-emitter.html).
 
-The C3 image defaults to corridor role 2; S3 defaults to inside role 1. Both use study code A17C. The firmware was compiled with Arduino-ESP32 3.3.2 using candidate 4 MB flash settings. Confirm the actual chip/flash capacity and back up existing contents before programming. The connected board has not been flashed by this work; Bluetooth reception and the room boundary remain unverified. Public acoustic codes and unsigned lab advertisements cannot provide production authentication or relay resistance.
+The C3 image defaults to corridor role 2; S3 defaults to inside role 1. Both use study code A17C. The firmware was compiled with Arduino-ESP32 3.3.2 using a 4 MB layout. The later user-run S3 upload identified 16 MB flash, saved a full backup and passed the immediate write hash; post-reset whole-image verification failed. Use the current [verification-only recovery](../prototype/SUBMISSION-GUIDE.md) to check immutable code without reflashing. Radio reception and the room boundary remain unverified. Public acoustic codes and unsigned lab advertisements cannot provide production authentication or relay resistance.
 
 ## Research, setup and verification
 

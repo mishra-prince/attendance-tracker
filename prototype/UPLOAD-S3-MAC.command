@@ -2,7 +2,16 @@
 set -eu
 task_dir="${0:A:h:h:h:h}"
 repo_dir="${0:A:h:h}"
+upload_mode="--flash"
+if [[ "${1:-}" == "--verify-only" ]]; then
+  upload_mode="--verify-only"
+  shift
+fi
 serial_port="${1:-/dev/cu.usbmodem101}"
+if (( $# > 1 )); then
+  print "Usage: UPLOAD-S3-MAC.command [--verify-only] [serial-port]"
+  exit 1
+fi
 python_bin="$task_dir/work/esp32-tools/venv/bin/python"
 firmware_bin="$repo_dir/prototype/firmware/threshold-s3-demo.merged.bin"
 if [[ ! -x "$python_bin" ]]; then
@@ -10,4 +19,4 @@ if [[ ! -x "$python_bin" ]]; then
   exit 1
 fi
 export TMPDIR="$task_dir/work/tmp"
-"$python_bin" "$repo_dir/prototype/upload_s3.py" --port "$serial_port" --python "$python_bin" --firmware "$firmware_bin" --backup-dir "$task_dir/work/hardware/backups" --flash
+"$python_bin" "$repo_dir/prototype/upload_s3.py" --port "$serial_port" --python "$python_bin" --firmware "$firmware_bin" --backup-dir "$task_dir/work/hardware/backups" "$upload_mode"

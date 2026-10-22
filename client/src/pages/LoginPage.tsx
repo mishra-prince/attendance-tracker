@@ -4,6 +4,7 @@ import { ArrowRight, ShieldCheck, Bluetooth, Eye, EyeOff } from 'lucide-react';
 import { api, errMsg } from '../lib/api';
 import { apiConfigured } from '../lib/config';
 import { useAuth } from '../store/auth';
+import ClassroomDemoButton from '../components/ClassroomDemoButton';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -42,6 +43,7 @@ export default function LoginPage() {
           {error && <p role="alert" className="notice notice-error">{error}</p>}
           <button className="btn-primary flex items-center justify-between" disabled={busy || !apiConfigured}>{busy ? 'Signing in…' : 'Sign in'}<ArrowRight size={18} /></button>
         </form>
+        <ClassroomDemoButton />
         <p className="text-xs text-ash leading-relaxed">Need an account or a password reset? Your institution’s administrator can help.</p>
         <div className="border-t border-white/10 pt-5"><Link to="/staff-login" className="text-ash text-xs no-underline flex items-center justify-between"><span className="flex items-center gap-2"><ShieldCheck size={15} />Teacher or administrator?</span><ArrowRight size={16} /></Link></div>
       </section>

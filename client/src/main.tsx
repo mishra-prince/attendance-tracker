@@ -30,6 +30,7 @@ const SupervisedEnrollment = React.lazy(() => import('./pages/staff/SupervisedEn
 const JoinSectionStudent = React.lazy(() => import('./pages/student/JoinSectionStudent'));
 const BleCheckin = React.lazy(() => import('./pages/student/BleCheckin'));
 import { restoreSession } from './lib/api';
+import ClassroomDemoButton from './components/ClassroomDemoButton';
 
 function Protected({ roles }: { roles?: Role[] }) {
   const user = useAuth((s) => s.user);
@@ -77,7 +78,10 @@ function Shell() {
   const [ready, setReady] = useState(false);
   const authError = useAuth((s) => s.error);
   useEffect(() => { restoreSession().catch(() => {}).finally(() => setReady(true)); }, []);
-  if (!ready) return <div className="min-h-full grid place-items-center text-ash" role="status">Opening Threshold…</div>;
+  if (!ready) return <div className="min-h-full flex flex-col items-center justify-center gap-6 p-6 text-ash">
+    <p role="status">Opening Threshold portal…</p>
+    <div className="w-full max-w-sm"><ClassroomDemoButton /></div>
+  </div>;
   return (
     <BrowserRouter>
       {authError && <div role="alert" className="connection-banner">{authError}</div>}

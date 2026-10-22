@@ -9,6 +9,7 @@ public class MainActivity extends BridgeActivity {
   @Override
   public void onCreate(Bundle savedInstanceState) {
     registerPlugin(AttendanceBluetoothPlugin.class);
+    registerPlugin(AttendanceVerificationPlugin.class);
     super.onCreate(savedInstanceState);
     CookieManager.getInstance().setAcceptThirdPartyCookies(getBridge().getWebView(), true);
     getBridge().getWebView().getSettings().setTextZoom(100);

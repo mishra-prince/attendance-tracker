@@ -5,6 +5,7 @@ import type { PluginListenerHandle } from '@capacitor/core';
 import { errMsg } from '../../lib/api';
 import { bleStatus, bleScan, useFlags, type BleStudentStatus } from '../../lib/features';
 import { bluetooth, hasNativeBluetooth } from '../../lib/bluetooth';
+import ClassroomDemoButton from '../../components/ClassroomDemoButton';
 
 export default function BleCheckin() {
   const { flags } = useFlags();
@@ -129,6 +130,7 @@ export default function BleCheckin() {
         <div className="checklist-row"><Smartphone size={18} /><span>Allow precise Location for classroom detection. Keep the app open and internet connected.</span></div>
         <div className="checklist-row"><ShieldCheck size={18} /><span>No cards, tags, GPS coordinates or Bluetooth addresses are collected by this check-in.</span></div>
       </div>
+      <ClassroomDemoButton />
       <Link to="/student/scan" className="fallback-link"><QrCode size={18} /><span>Need another way? Scan a class QR</span><ChevronRight size={18} /></Link>
     </div>
   );
