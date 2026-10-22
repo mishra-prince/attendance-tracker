@@ -2,6 +2,12 @@
 
 A college attendance app for Android and the web. Students check in using their phones; teachers review and submit session attendance. No RFID cards or tags are required.
 
+## Submission prototype for 23 October 2026
+
+[Download Threshold Prototype 0.2.0 APK](https://github.com/mishra-prince/attendance-tracker/raw/refs/heads/master/downloads/threshold-prototype-0.2.0-test.apk) · [Demo setup and presentation guide](prototype/SUBMISSION-GUIDE.md) · [Build report](prototype/BUILD-REPORT.md)
+
+This separate offline Android app adds real enrolled-face comparison, basic random blink/turn checks, ESP32-S3 proximity and a short class demo. It does not need the attendance server or award institutional attendance. The S3 still needs the user-run [Mac upload](prototype/UPLOAD-S3-MAC.command), which backs up existing firmware first, and a physical phone test. Corridor rejection, iPhone/locked-phone operation, robust anti-spoof protection and 95% accuracy are not established.
+
 ## Test builds and project reports
 
 The [downloads folder](downloads/README.md) contains the test APKs, Room Lab pilot kit, compiled ESP32-C3/S3 firmware, setup guides and attendance research report.

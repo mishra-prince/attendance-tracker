@@ -1,0 +1,3 @@
+rootProject.name = 'ThresholdPrototype'
+include ':prototype'
+project(':prototype').projectDir = file('../../client/android/prototype')

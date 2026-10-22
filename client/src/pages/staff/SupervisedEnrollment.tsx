@@ -9,7 +9,7 @@ import { Page } from '../../components/motion';
 import { RowSkeleton } from '../../components/skeletons';
 
 // This is the ROOT-OF-TRUST station. Staff verify institutional identity in person,
-// then capture a live face + liveness. No student self-enrollment exists anywhere.
+// then record the staff observation. This page does not run camera capture or face inference.
 
 const METHODS: { value: EnrollmentMethod; label: string }[] = [
   { value: 'SUPERVISED_STAFF', label: 'Supervised by staff' },
@@ -64,7 +64,7 @@ export default function SupervisedEnrollment() {
       const isReenroll = sel.enrollment_trust_state === 'ACTIVE' || sel.enrollment_trust_state === 'REVOKED' || sel.enrollment_trust_state === 'REQUIRES_REENROLLMENT';
       if (isReenroll) await reEnroll(sel.student_id, method, liveness);
       else await superviseEnroll(sel.student_id, method, liveness);
-      setMsg('✓ Identity enrolled — biometric root of trust established');
+      setMsg('✓ Supervised enrollment metadata recorded — no face template was captured by this page');
       setSel(null);
       load();
     } catch (e) { setMsg('⚠ ' + errMsg(e)); }
@@ -77,7 +77,7 @@ export default function SupervisedEnrollment() {
         <ShieldCheck size={20} className="text-signal" />
         <div>
           <div className="text-bone text-lg font-semibold">Supervised Enrollment</div>
-          <div className="text-ash text-sm mt-0.5">Verify identity in person, then capture the live biometric.</div>
+          <div className="text-ash text-sm mt-0.5">Record an in-person staff observation. Automatic face verification is available in the separate Android submission prototype.</div>
         </div>
       </div>
 
@@ -139,7 +139,7 @@ export default function SupervisedEnrollment() {
           <button onClick={() => setLiveness((v) => !v)}
             className={`glass-card rounded-xl p-3 flex items-center gap-3 text-left ${liveness ? 'ring-1 ring-emerald-400/40' : ''}`}>
             <ScanFace size={18} className={liveness ? 'text-emerald-400' : 'text-ash'} />
-            <div className="flex-1 text-sm">{liveness ? 'Live face captured (liveness passed)' : 'Capture live face + liveness'}</div>
+            <div className="flex-1 text-sm">{liveness ? 'Staff confirms an in-person live observation' : 'Confirm staff observed the student live in person'}</div>
             {liveness && <CheckCircle2 size={16} className="text-emerald-400" />}
           </button>
 
@@ -152,7 +152,7 @@ export default function SupervisedEnrollment() {
             <button className="btn-ghost" onClick={() => setSel(null)}>Cancel</button>
           </div>
           <div className="text-muted text-[11px]">
-            Both steps are required: identity verification is the root of trust; a live selfie alone can never establish identity.
+            Both confirmations are manual staff observations. This web page stores enrollment metadata; it does not capture, match or test a face. Prototype templates are local and are not linked to this record.
           </div>
         </div>
       )}
