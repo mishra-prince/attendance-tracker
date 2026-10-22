@@ -2,9 +2,11 @@
 
 A college attendance app for Android and the web. Students check in using their phones; teachers review and submit session attendance. No RFID cards or tags are required.
 
-## Threshold 1.2.0 — same-app submission for 23 October 2026
+## Threshold 1.2.1 — same-app submission for 23 October 2026
 
-[Download the updated Threshold 1.2.0 APK](https://github.com/mishra-prince/attendance-tracker/raw/refs/heads/master/downloads/threshold-1.2.0-test.apk) · [Demo setup and S3 recovery](prototype/SUBMISSION-GUIDE.md) · [Build report](prototype/BUILD-REPORT.md)
+[Download the updated Threshold 1.2.1 APK](https://github.com/mishra-prince/attendance-tracker/raw/refs/heads/master/downloads/threshold-1.2.1-test.apk) · [Demo setup and S3 recovery](prototype/SUBMISSION-GUIDE.md) · [Build report](prototype/BUILD-REPORT.md)
+
+**1.2.1 fixes face-capture timeouts:** an explicit Start button separates camera preparation from the action timer; instructions stay above the preview and a natural smile can narrow the eyes. Capture happens automatically after the two actions.
 
 Face matching, two randomized actions and the ESP32-S3 class demo are now **inside the original Threshold app**, preserving `com.attendance.tracker` and its test-signing certificate. Tap **Face & ESP32 classroom demo** on the login screen; no account/server is needed for this local demo. The original institution portal remains available. Demo enrollment/results do not award real attendance or establish institution-approved identity. The feature module is an internal library, not a separately installed app.
 
@@ -14,7 +16,7 @@ The user-run S3 write passed its immediate hash check but the later whole-image 
 
 The [downloads folder](downloads/README.md) contains the test APKs, Room Lab pilot kit, compiled ESP32-C3/S3 firmware, setup guides and attendance research report.
 
-- [Download the current Threshold 1.2.0 Android test APK](https://github.com/mishra-prince/attendance-tracker/raw/refs/heads/master/downloads/threshold-1.2.0-test.apk) — embedded classroom demo works offline; real attendance needs the updated backend.
+- [Download the current Threshold 1.2.1 Android test APK](https://github.com/mishra-prince/attendance-tracker/raw/refs/heads/master/downloads/threshold-1.2.1-test.apk) — embedded classroom demo works offline; real attendance needs the updated backend.
 - [Previous Threshold 1.1.0 Android test APK](https://github.com/mishra-prince/attendance-tracker/raw/refs/heads/master/downloads/threshold-1.1.0-test.apk) — retained historical build.
 - [Download the offline Room Lab Android test APK](https://github.com/mishra-prince/attendance-tracker/raw/refs/heads/master/downloads/threshold-room-lab-0.1.0-test.apk) — room-calibration measurements only.
 - [Room Lab setup guide](downloads/ROOM-LAB-QUICKSTART.md) and [research and pilot plan](downloads/ATTENDANCE-RESEARCH-AND-PILOT.md).

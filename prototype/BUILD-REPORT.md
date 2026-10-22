@@ -1,25 +1,37 @@
-# Threshold 1.2.0 — same-app build record
+# Threshold 1.2.1 — same-app build record
 
-Prepared 23 October 2026. This supersedes the separate Prototype 0.2.0 delivery for the current user request.
+Prepared 23 October 2026. Patch 1.2.1 addresses the user-reported face capture timeout on a Nothing Phone (1); the user confirmed its camera preview works, but did not complete enrollment. The agent has not operated that phone. This supersedes the separate Prototype 0.2.0 delivery for the current user request.
+
+## Face capture correction
+
+The 1.2.0 challenge began before the camera was ready. A smile also required both eye-open scores above 0.65, which can reject a natural eye-narrowing smile. Generic instructions and overwritten frame errors gave little explanation before timeout. These are code findings, not a device-log diagnosis of the user's exact failure.
+
+1.2.1 has a bounded 60-second preparation stage, three fresh stable readiness observations, an explicit **Start face capture** button and a separate visible **30-second** challenge countdown. Preparation does not capture identity, complete actions or consume challenge time. Guidance above the smaller preview distinguishes face count/size, pose, eye readability/opening and relaxed mouth. ML Kit landmarks are explicitly enabled alongside classification. The setup button says **Open face camera**, and automatic capture is explained on the camera page.
+
+Smile actions require a clear frontal smile without requiring eye-open scores at the same time. Neutral baselines/returns still require open eyes and a relaxed mouth; blink still requires closure then reopening. Identity checkpoints, matching thresholds, random action order and final samples remain. The UI holds the next prompt until synchronous SFace inference finishes; that known processing pause no longer masquerades as a missing-camera-frame gap. It does not extend wall-clock expiry, and comparisons finishing after expiry cannot save a result. Actual camera gaps still reset continuity. No action is accepted during the processing pause; this is still basic active liveness, not validated continuous person tracking or PAD.
+
+Seven additional regression tests cover a narrowed-eye smile and neutral return, missing smile output, inference delay without false reset or deadline extension, preparation freshness/tracking, preparation without challenge consumption and specific guidance. Existing tests still exercise all 30 ordered action pairs. Native capture only changed, so the previously built frontend/portal/backend are unchanged; no new frontend build or server tests were necessary for this patch.
+
+References: [ML Kit classification and landmark/frontal-face requirements](https://developers.google.com/ml-kit/vision/face-detection/face-detection-concepts), [Android face detection configuration](https://developers.google.com/ml-kit/vision/face-detection/android), [CameraX latest-frame analysis](https://developer.android.com/media/camera/camerax/analyze).
 
 ## Completed software checks
 
 | Check | Result |
 | --- | --- |
-| Main Android APK | Pass; **com.attendance.tracker**, version **1.2.0 / code 3**, min API 24 / Android 7, target 36, ARM64 + ARMv7 |
+| Main Android APK | Pass; **com.attendance.tracker**, version **1.2.1 / code 4**, min API 24 / Android 7, target 36, ARM64 + ARMv7 |
 | Update compatibility | Package unchanged and signing certificate SHA-256 equals the published 1.1.0 test APK: `bca7e1406cb3f713aceeab3d6b50aee0d015933c321e73c046b77b29cdfcfdca` |
 | Main app lint | **0 errors, 19 warnings** |
-| Internal verification library lint | **0 errors, 17 warnings** |
-| Verification library JVM tests | **28 passed**, zero failures/skips; includes all **30 ordered pairs** of distinct actions with synthetic signals |
+| Internal verification library lint | **0 errors, 16 warnings** |
+| Verification library JVM tests | **35 passed**, zero failures/skips; includes all **30 ordered pairs** of distinct actions with synthetic signals |
 | Main existing JVM sample test | Pass (boilerplate only; not evidence of application behaviour) |
 | Uploader safety/regression tests | **11 passed**, no real serial device opened |
-| Frontend TypeScript/Vite + Capacitor sync | Pass; native classroom-demo buttons are included in packaged web assets |
+| Frontend TypeScript/Vite + Capacitor sync | Prior 1.2.0 pass, unchanged for this native-only patch; native classroom-demo buttons are included in packaged web assets |
 | APK signature | Verified debug signing; certificate matches prior published Threshold test build |
 | Packaged feature | Actual YuNet/SFace models, native bridge/class and multi-action UI text confirmed inside the main APK |
 | Internal feature boundary | `:prototype` is now an Android **library**; its activity is **not exported**, with no launcher/application identity or separate APK |
 | Previous host inference smoke check | OpenCV 4.12.0: same-image lighting variant cosine **0.989557**; different subject **0.111303**, against experimental 0.50 threshold |
 
-The meaningful new automated checks total **39** (28 native logic + 11 simulated uploader tests). They do not establish field accuracy. Java tests cover neutral baselines/returns, smile/pose/blink actions, wrong order/direction, missing classifiers, track/multiple-face continuity, gaps, expiry, checkpoint serials, private action-array copies, invalid/empty embeddings, matching math and fresh/dwell beacon evidence. Pose actions allow unavailable nonfrontal eye/smile classifiers; frontal identity checkpoints require the neutral baseline again.
+The meaningful new automated checks total **46** (35 native logic + 11 simulated uploader tests). They do not establish field accuracy. Java tests cover neutral baselines/returns, smile/pose/blink actions, wrong order/direction, missing classifiers, track/multiple-face continuity, gaps, expiry, checkpoint serials, private action-array copies, invalid/empty embeddings, matching math and fresh/dwell beacon evidence. Pose actions allow unavailable nonfrontal eye/smile classifiers; frontal identity checkpoints require the neutral baseline again.
 
 The random sequence selects two distinct actions using SecureRandom from blink, smile, turn left/right and look up/down. Native identity embeddings are checked before actions, after each neutral return and across the final three frames. No client-side face result is sent to a production attendance endpoint. The native bridge only opens the demo. Authenticated portal data/roles/calculations/migrations are unchanged.
 

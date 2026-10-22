@@ -58,13 +58,18 @@ public final class PrototypeActivity extends ComponentActivity {
     private String pendingName, pendingRoll, pendingSupervisor;
     private char[] pendingPin;
     private static final class Attempt {
-        final FaceChallenge challenge;
+        final FacePreparation preparation = new FacePreparation();
+        final long prepareUntil = SystemClock.elapsedRealtime() + DemoPolicy.CAMERA_PREPARATION_MS;
+        volatile FaceChallenge challenge;
+        volatile boolean startRequested;
+        volatile String lastHint = "Waiting for camera frames…";
+        String lastIssue = "";
         final List<float[]> samples = new ArrayList<>();
         final float[] reference;
         float[] challengeIdentity;
         int lastCheckpoint;
         double minimumScore = 1;
-        Attempt(FaceChallenge challenge, float[] reference) { this.challenge=challenge; this.reference=reference; }
+        Attempt(float[] reference) { this.reference=reference; }
     }
 
     @Override public void onCreate(Bundle state) {
@@ -73,6 +78,7 @@ public final class PrototypeActivity extends ComponentActivity {
         store = new EnrollmentStore(this);
         detector = FaceDetection.getClient(new FaceDetectorOptions.Builder()
             .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
+            .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_ALL)
             .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL)
             .enableTracking().setMinFaceSize(.18f).build());
         showHome();
@@ -87,13 +93,16 @@ public final class PrototypeActivity extends ComponentActivity {
         background.setCornerRadius(dp(radius)); background.setStroke(dp(1), Color.rgb(58,54,54)); return background;
     }
     private void page(String eyebrow, String title, String subtitle) {
+        page(eyebrow,title,subtitle,34);
+    }
+    private void page(String eyebrow, String title, String subtitle, int titleSize) {
         ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true); scroll.setBackgroundColor(Color.rgb(10,9,8));
         content = new LinearLayout(this); content.setOrientation(LinearLayout.VERTICAL); content.setPadding(dp(22),dp(20),dp(22),dp(30));
         scroll.addView(content); setContentView(scroll);
         scroll.setOnApplyWindowInsetsListener((view, insets) -> {
             content.setPadding(dp(22),dp(20)+insets.getSystemWindowInsetTop(),dp(22),dp(30)+insets.getSystemWindowInsetBottom()); return insets;
         });
-        label(eyebrow, 12, RED); label(title, 34, BONE); label(subtitle,14,ASH); gap(16);
+        label(eyebrow, 12, RED); label(title, titleSize, BONE); label(subtitle,14,ASH); gap(16);
     }
     private TextView label(String text, int size, int color) {
         TextView view = new TextView(this); view.setText(text); view.setTextSize(size); view.setTextColor(color);
@@ -231,7 +240,7 @@ public final class PrototypeActivity extends ComponentActivity {
         EditText name=field(box,"Volunteer name",false),roll=field(box,"Demo roll number",false),staff=field(box,"Supervising staff name",false),pin=field(box,"Private supervisor PIN (6+ digits)",true);
         CheckBox consent=new CheckBox(this); consent.setText("I am the demo supervisor. I checked the volunteer’s ID in person and have their consent to save a local face template."); box.addView(consent);
         TextView note=new TextView(this); note.setText("Local submission demo only. This setup does not authenticate college staff or create an institutional identity."); box.addView(note);
-        AlertDialog dialog=new AlertDialog.Builder(this).setTitle("Supervised demo enrollment").setView(box).setPositiveButton("Capture live face",null).setNegativeButton("Cancel",null).create();
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle("Supervised demo enrollment").setView(box).setPositiveButton("Open face camera",null).setNegativeButton("Cancel",null).create();
         dialog.setOnShowListener(d -> dialog.getButton(-1).setOnClickListener(v -> {
             if(name.getText().toString().trim().isEmpty() || roll.getText().toString().trim().isEmpty() || staff.getText().toString().trim().isEmpty() || !pin.getText().toString().matches("[0-9]{6,20}") || !consent.isChecked()) {
                 Toast.makeText(this,"Complete every field, use a 6–20 digit PIN and confirm supervised consent.",Toast.LENGTH_LONG).show(); return;
@@ -290,14 +299,35 @@ public final class PrototypeActivity extends ComponentActivity {
         try { reference=purpose.equals("enroll") ? null : store.template(); }
         catch(Exception error) { notice("No readable face enrollment. Visit supervisor setup."); return; }
         stopCamera(); cameraPurpose=purpose;
-        Attempt attempt=new Attempt(FaceChallenge.random(SystemClock.elapsedRealtime(),random),reference);
-        page("THRESHOLD / LIVE IDENTITY",purpose.equals("enroll") ? "Meet your demo identity." : "A quick face check.","Face a light source. Keep one face visible. No photo is saved.");
+        Attempt attempt=new Attempt(reference);
+        page("THRESHOLD / LIVE IDENTITY",purpose.equals("enroll") ? "Capture your face." : "Verify your face.","Tap Start when ready. Follow two actions; your face is captured automatically. No photo is saved.",24);
+        // Guidance belongs above the preview so it stays visible on smaller screens.
+        instruction=card("Starting the front camera. Look straight with a relaxed mouth and open eyes.");
+        TextView faceTimer=label("Camera preparation · action timer has not started",13,ASH);
+        Button startCapture=button("Start face capture",true,() -> attempt.startRequested=true); startCapture.setEnabled(false);
+        startCapture.setOnClickListener(v -> { attempt.startRequested=true; startCapture.setEnabled(false); });
         preview=new PreviewView(this); preview.setImplementationMode(PreviewView.ImplementationMode.COMPATIBLE);
-        content.addView(preview,new LinearLayout.LayoutParams(-1,dp(290)));
-        instruction=card(attempt.challenge.instruction()); statusText=label("Two randomized actions · offline face comparison",13,ASH);
+        int previewHeight=Math.max(160,Math.min(240,getResources().getConfiguration().screenHeightDp-470));
+        content.addView(preview,new LinearLayout.LayoutParams(-1,dp(previewHeight)));
+        statusText=label("Waiting for a clear face, readable eyes and a relaxed mouth.",13,ASH);
         button("Cancel check",false,() -> faceFailure("Face check cancelled. Retry when ready."));
         brightness(-1); getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         int token=++generation; cameraRunning=true; busy=false;
+        lastFrame=0;
+        Runnable faceClock=new Runnable() {
+            @Override public void run() {
+                if(token!=generation || !cameraRunning) return;
+                long now=SystemClock.elapsedRealtime(); FaceChallenge challenge=attempt.challenge;
+                long remaining=challenge==null ? attempt.prepareUntil-now : challenge.remaining(now);
+                if(remaining<=0) {
+                    faceFailure((challenge==null ? "Camera preparation timed out. " : "Face check timed out. ")+attempt.lastHint+"\nNothing was captured. Retry when ready."); return;
+                }
+                faceTimer.setText(challenge==null ? "Preparation · "+(remaining+999)/1000+" s · timer starts after Start"
+                    : "Automatic capture · "+(remaining+999)/1000+" s remaining");
+                main.postDelayed(this,250);
+            }
+        };
+        main.post(faceClock);
         com.google.common.util.concurrent.ListenableFuture<ProcessCameraProvider> future=ProcessCameraProvider.getInstance(this);
         future.addListener(() -> {
             if(token!=generation || !cameraRunning) return;
@@ -305,13 +335,12 @@ public final class PrototypeActivity extends ComponentActivity {
                 provider=future.get(); provider.unbindAll();
                 Preview live=new Preview.Builder().build(); live.setSurfaceProvider(preview.getSurfaceProvider());
                 ImageAnalysis analysis=new ImageAnalysis.Builder().setTargetResolution(new android.util.Size(640,480)).setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).build();
-                analysis.setAnalyzer(worker,image -> analyze(image,token,attempt,purpose));
+                analysis.setAnalyzer(worker,image -> analyze(image,token,attempt,purpose,startCapture));
                 provider.bindToLifecycle(this,CameraSelector.DEFAULT_FRONT_CAMERA,live,analysis);
-                main.postDelayed(() -> { if(token==generation && cameraRunning) faceFailure("Face check timed out. Retry in good light."); },DemoPolicy.CHALLENGE_MS);
             } catch(Exception error) { faceFailure("Front camera unavailable: "+error.getMessage()); }
         },ContextCompat.getMainExecutor(this));
     }
-    private void analyze(ImageProxy proxy,int token,Attempt attempt,String purpose) {
+    private void analyze(ImageProxy proxy,int token,Attempt attempt,String purpose,Button startCapture) {
         long now=SystemClock.elapsedRealtime();
         if(token!=generation || !cameraRunning || busy || now-lastFrame<120) { proxy.close(); return; }
         lastFrame=now; busy=true;
@@ -325,15 +354,54 @@ public final class PrototypeActivity extends ComponentActivity {
                 try {
                     if(token!=generation || !cameraRunning) return;
                     Face face=faces.size()==1 ? faces.get(0) : null;
-                    FaceChallenge.Step previous=attempt.challenge.step();
-                    FaceChallenge.Step step=attempt.challenge.observe(SystemClock.elapsedRealtime(),faces.size(),face==null?null:face.getTrackingId(),face==null?0:face.getHeadEulerAngleY(),face==null?0:face.getHeadEulerAngleX(),face==null?null:face.getLeftEyeOpenProbability(),face==null?null:face.getRightEyeOpenProbability(),face==null?null:face.getSmilingProbability());
+                    long observedAt=SystemClock.elapsedRealtime();
+                    Integer track=face==null ? null : face.getTrackingId();
+                    float yaw=face==null ? 0 : face.getHeadEulerAngleY(), pitch=face==null ? 0 : face.getHeadEulerAngleX();
+                    Float left=face==null ? null : face.getLeftEyeOpenProbability(), right=face==null ? null : face.getRightEyeOpenProbability(), smile=face==null ? null : face.getSmilingProbability();
+                    String neutralHint=FaceChallenge.neutralHint(faces.size(),track,yaw,pitch,left,right,smile);
+                    if(neutralHint==null && (face.getBoundingBox().width()<100 || face.getBoundingBox().height()<100)) neutralHint="Move closer until your face fills more of the preview.";
+                    if(attempt.challenge==null) {
+                        attempt.preparation.observe(observedAt,track,neutralHint);
+                        boolean canStart=attempt.preparation.ready(observedAt);
+                        String preparationHint=neutralHint!=null ? neutralHint : canStart ? "Ready. Tap Start face capture, then follow each action above the preview." : "Face looks clear. Hold still for a moment.";
+                        attempt.lastHint=preparationHint;
+                        main.post(() -> { if(token==generation) {
+                            instruction.setText(preparationHint); startCapture.setEnabled(canStart);
+                            statusText.setText(getString(R.string.face_camera_live,faces.size()));
+                        } });
+                        if(!attempt.startRequested) return;
+                        attempt.startRequested=false;
+                        if(!canStart) return;
+                        attempt.challenge=FaceChallenge.random(observedAt,random);
+                        main.post(() -> { if(token==generation) startCapture.setVisibility(View.GONE); });
+                    }
+                    FaceChallenge challenge=attempt.challenge;
+                    FaceChallenge.Step previous=challenge.step();
+                    FaceChallenge.Step step=challenge.observe(observedAt,faces.size(),track,yaw,pitch,left,right,smile);
                     if(step!=FaceChallenge.Step.CAPTURE || previous!=FaceChallenge.Step.CAPTURE) attempt.samples.clear();
-                    String hint=faces.size()!=1 ? "Show exactly one face. Check your lighting." : attempt.challenge.instruction();
-                    main.post(() -> { if(token==generation && instruction!=null) instruction.setText(hint); });
+                    String hint=(step==FaceChallenge.Step.CENTER || step==FaceChallenge.Step.RETURN) && neutralHint!=null ? neutralHint : challenge.instruction();
+                    attempt.lastHint=hint;
                     if(step==FaceChallenge.Step.EXPIRED) { main.post(() -> { if(token==generation) faceFailure("Face check expired. Retry."); }); return; }
-                    boolean identityCheckpoint = attempt.challenge.checkpoint() > attempt.lastCheckpoint;
-                    if(step!=FaceChallenge.Step.CAPTURE && !identityCheckpoint) return;
-                    float[] vector=engine.embedding(frame);
+                    boolean identityCheckpoint = challenge.checkpoint() > attempt.lastCheckpoint;
+                    if(step!=FaceChallenge.Step.CAPTURE && !identityCheckpoint) {
+                        String lastIssue=attempt.lastIssue;
+                        main.post(() -> { if(token==generation) {
+                            instruction.setText(hint);
+                            statusText.setText(lastIssue.isEmpty() ? getString(R.string.face_follow_instruction) : getString(R.string.face_last_issue,lastIssue));
+                        } }); return;
+                    }
+                    attempt.lastHint="Face identity comparison was still running. Keep the phone steady in front lighting.";
+                    main.post(() -> { if(token==generation) {
+                        instruction.setText(R.string.face_checking_identity);
+                        statusText.setText(R.string.face_comparing_local);
+                    } });
+                    float[] vector;
+                    try { vector=engine.embedding(frame); }
+                    finally { challenge.comparisonFinished(SystemClock.elapsedRealtime()); }
+                    if(token!=generation || !cameraRunning) return;
+                    if(challenge.step()==FaceChallenge.Step.EXPIRED) {
+                        main.post(() -> { if(token==generation) faceFailure("Face comparison exceeded the check deadline. No capture was accepted. Retry when ready."); }); return;
+                    }
                     double score=attempt.reference==null ? 1 : FaceMath.cosine(attempt.reference,vector);
                     if(attempt.reference!=null && score<DemoPolicy.MATCH_COSINE) {
                         main.post(() -> { if(token==generation) faceFailure("FACE DID NOT MATCH\nUse the enrolled volunteer, or ask the supervisor to check the enrollment. No attendance was changed."); }); return;
@@ -342,21 +410,25 @@ public final class PrototypeActivity extends ComponentActivity {
                         main.post(() -> { if(token==generation) faceFailure("Face changed during the challenge. Retry with the same enrolled person throughout."); }); return;
                     }
                     if(attempt.challengeIdentity==null) attempt.challengeIdentity=vector.clone();
-                    attempt.lastCheckpoint=attempt.challenge.checkpoint();
+                    attempt.lastCheckpoint=challenge.checkpoint(); attempt.lastIssue="";
                     attempt.minimumScore=Math.min(attempt.minimumScore,score);
-                    if(step!=FaceChallenge.Step.CAPTURE) return;
-                    attempt.samples.add(vector);
+                    if(step==FaceChallenge.Step.CAPTURE) attempt.samples.add(vector);
+                    String nextHint=step==FaceChallenge.Step.CAPTURE ? "Automatic capture: sample "+attempt.samples.size()+" of "+DemoPolicy.SAMPLES+". Hold still." : challenge.instruction();
+                    attempt.lastHint=nextHint;
+                    main.post(() -> { if(token==generation) { instruction.setText(nextHint); statusText.setText(R.string.face_checkpoint_complete); } });
                     if(attempt.samples.size()>=DemoPolicy.SAMPLES) {
                         float[] template=FaceMath.average(attempt.samples);
                         main.post(() -> { if(token==generation && cameraRunning) faceSuccess(purpose,template,attempt.minimumScore); });
                     }
                 } catch(Exception error) {
-                    attempt.samples.clear(); attempt.challenge.missing(); attempt.challengeIdentity=null;
-                    main.post(() -> { if(token==generation && instruction!=null) instruction.setText("Could not compare this frame. "+error.getMessage()); });
-                } finally { frame.recycle(); busy=false; }
+                    attempt.samples.clear(); if(attempt.challenge!=null) attempt.challenge.missing();
+                    String reason=error.getMessage()==null ? error.getClass().getSimpleName() : error.getMessage();
+                    attempt.lastIssue=reason; attempt.lastHint="Could not capture this frame: "+reason;
+                    main.post(() -> { if(token==generation && instruction!=null) { instruction.setText(attempt.lastHint); statusText.setText(getString(R.string.face_restart_reason,reason)); } });
+                } finally { frame.recycle(); if(token==generation) busy=false; }
             }).addOnFailureListener(detectorCallbacks,error -> {
-                frame.recycle(); busy=false;
-                main.post(() -> { if(token==generation) faceFailure("Face detector unavailable. Retry or use a supported Android phone."); });
+                frame.recycle(); if(token==generation) busy=false;
+                main.post(() -> { if(token==generation) faceFailure("Face detector unavailable: "+error.getMessage()+". Retry in the foreground."); });
             });
         } catch(Exception error) {
             if(raw!=null && !raw.isRecycled()) raw.recycle(); proxy.close(); busy=false;

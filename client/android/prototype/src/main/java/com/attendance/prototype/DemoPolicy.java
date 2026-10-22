@@ -7,6 +7,7 @@ public final class DemoPolicy {
     public static final long MIN_DWELL_MS = 45_000;
     public static final long FRESH_BEACON_MS = 5_000;
     public static final long CHALLENGE_MS = 30_000;
+    public static final long CAMERA_PREPARATION_MS = 60_000;
     public static final double MATCH_COSINE = 0.50;
     public static final int SAMPLES = 3;
 }

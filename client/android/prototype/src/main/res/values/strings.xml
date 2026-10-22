@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="face_camera_live">Camera live · %1$d face(s) · capture is automatic after the actions</string>
+    <string name="face_follow_instruction">Follow only the current action. Capture is automatic.</string>
+    <string name="face_last_issue">Last frame issue: %1$s</string>
+    <string name="face_checking_identity">Hold still — checking face identity. Wait for the next instruction.</string>
+    <string name="face_comparing_local">Comparing on this phone. No photo is saved.</string>
+    <string name="face_checkpoint_complete">Identity checkpoint complete. Follow the current instruction.</string>
+    <string name="face_restart_reason">Return to centre; the actions will restart. %1$s</string>
+</resources>

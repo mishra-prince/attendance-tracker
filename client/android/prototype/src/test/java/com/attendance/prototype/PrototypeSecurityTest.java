@@ -59,6 +59,51 @@ public class PrototypeSecurityTest {
         FaceChallenge c=new FaceChallenge(0,SMILE); for(int i=0;i<8;i++) frame(c,1,0,0,.9f,.95f);
         assertEquals(FaceChallenge.Step.CENTER,c.step());
     }
+    @Test public void naturalSmileWithNarrowedEyesCanCompleteSmileButNotNeutralReturn() {
+        FaceChallenge c=new FaceChallenge(0,SMILE); neutral(c);
+        for(int i=0;i<3;i++) frame(c,1,0,0,.2f,.95f);
+        assertEquals(FaceChallenge.Step.RETURN,c.step());
+        for(int i=0;i<3;i++) frame(c,1,0,0,.2f,.1f);
+        assertEquals(FaceChallenge.Step.RETURN,c.step());
+        neutral(c); assertEquals(FaceChallenge.Step.CAPTURE,c.step());
+    }
+    @Test public void missingSmileClassificationCannotCompleteSmile() {
+        FaceChallenge c=new FaceChallenge(0,SMILE); neutral(c);
+        for(int i=0;i<5;i++) frame(c,1,0,0,.9f,null);
+        assertEquals(FaceChallenge.Step.ACTION,c.step());
+    }
+    @Test public void expectedInferenceDelayDoesNotRestartActions() {
+        FaceChallenge c=new FaceChallenge(0,SMILE); neutral(c);
+        clock+=2500; c.comparisonFinished(clock); frame(c,1,0,0,.9f,.95f);
+        assertEquals(FaceChallenge.Step.ACTION,c.step());
+        for(int i=0;i<2;i++) frame(c,1,0,0,.9f,.95f);
+        assertEquals(FaceChallenge.Step.RETURN,c.step());
+    }
+    @Test public void inferenceDelayDoesNotExtendDeadline() {
+        FaceChallenge c=new FaceChallenge(0,SMILE); neutral(c); c.comparisonFinished(30_000);
+        assertEquals(FaceChallenge.Step.EXPIRED,c.step()); assertEquals(0,c.remaining(30_000));
+    }
+    @Test public void preparationRequiresFreshStableSingleTrackedFace() {
+        FacePreparation p=new FacePreparation();
+        p.observe(0,1,null); p.observe(150,1,null); assertFalse(p.ready(150));
+        p.observe(300,1,null); assertTrue(p.ready(300)); assertFalse(p.ready(1300));
+        p.observe(1400,1,null); assertFalse(p.ready(1400));
+        p.observe(1550,2,null); p.observe(1700,2,null); assertFalse(p.ready(1700));
+        p.observe(1850,2,null); assertTrue(p.ready(1850));
+        p.observe(2000,2,"Eyes are not readable"); assertFalse(p.ready(2000));
+    }
+    @Test public void preparationNeverStartsOrConsumesChallengeTime() {
+        FacePreparation p=new FacePreparation(); p.observe(55_000,1,null); p.observe(55_150,1,null); p.observe(55_300,1,null);
+        assertTrue(p.ready(55_300)); FaceChallenge c=new FaceChallenge(55_300,SMILE);
+        assertEquals(DemoPolicy.CHALLENGE_MS,c.remaining(55_300));
+        assertEquals(FaceChallenge.Step.CENTER,c.step()); assertEquals(0,c.checkpoint());
+    }
+    @Test public void guidanceExplainsMissingEyesAndRelaxedMouthSeparately() {
+        assertTrue(FaceChallenge.neutralHint(1,1,0,0,null,null,.1f).contains("Eyes"));
+        assertTrue(FaceChallenge.neutralHint(1,1,0,0,.9f,.9f,.95f).contains("Smile only when"));
+        assertNull(FaceChallenge.neutralHint(1,1,0,0,.9f,.9f,.1f));
+        assertNotNull(FaceChallenge.neutralHint(2,1,0,0,.9f,.9f,.1f));
+    }
     @Test public void changedTrackedFaceResetsChallenge() {
         FaceChallenge c=new FaceChallenge(0,TURN_LEFT); neutral(c); frame(c,2,25,0,null,null);
         assertEquals(FaceChallenge.Step.CENTER,c.step());
