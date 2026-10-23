@@ -1,5 +1,6 @@
 import { prisma } from '../utils/prisma';
 import { httpError } from '../middleware/error.middleware';
+import { sessionBounds } from './bleEvidence.service';
 
 /** Single source of truth for attendance percentage math. Never duplicate elsewhere. */
 
@@ -66,7 +67,7 @@ export async function computeStudentSummary(studentId: string, subjectId?: strin
       ...(subjectId ? {} : {}),
       session: subjectId ? { subject_id: subjectId } : { subject_id: { in: subjectIds } },
     },
-    include: { session: { select: { subject_id: true, date: true, status: true } } },
+    include: { session: { select: { subject_id: true, section_id: true, date: true, start_time: true, end_time: true, status: true } } },
   });
 
   const bySubject: Record<string, { eligible: number; present: number }> = {};
@@ -78,7 +79,8 @@ export async function computeStudentSummary(studentId: string, subjectId?: strin
     if (row.session.status === 'cancelled') continue;
     // must have had active enrollment at that date
     const enr = enrollments.find(
-      (e) => e.subject_id === row.session.subject_id && e.enrolled_at <= row.session.date
+      (e) => e.subject_id === row.session.subject_id && e.section_id === row.session.section_id
+        && e.enrolled_at <= sessionBounds(row.session, process.env.ATTENDANCE_TIMEZONE || 'Asia/Kolkata').end
     );
     if (!enr) continue;
 

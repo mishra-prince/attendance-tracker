@@ -57,6 +57,7 @@ enum AttendanceMethod {
   manual
   QR
   BLE_AUTO
+  RFID
 }
 
 enum EnrollmentStatus {
@@ -179,6 +180,8 @@ model User {
   notifications Notification[] @relation("UserNotifications")
   biometricEnrollmentsVerified BiometricEnrollment[] @relation("BiometricEnrolledBy")
   refreshSessions RefreshSession[]
+  rfidReaders RfidReader[]
+  rfidCards RfidCard[]
 }
 
 model RefreshSession {
@@ -327,6 +330,9 @@ model Student {
   notifications Notification[]
   biometricEnrollment BiometricEnrollment?
   deviceIntegrityEvents DeviceIntegrityEvent[]
+  rfidCards RfidCard[]
+  rfidEvents RfidEvent[]
+  rfidVisits RfidVisit[]
 }
 
 model Teacher {
@@ -394,6 +400,7 @@ model Timetable {
 model ClassSession {
   session_id   String @id @default(uuid())
   timetable_id String?
+  room_no      String?
   subject_id   String
   section_id   String
   teacher_id   String
@@ -411,6 +418,8 @@ model ClassSession {
   teacher    Teacher    @relation(fields: [teacher_id], references: [teacher_id])
   attendance Attendance[]
   qrSessions AttendanceQRSession[]
+  rfidEvents RfidEvent[]
+  rfidVisits RfidVisit[]
 
   @@index([section_id, date])
   @@index([teacher_id, date])
@@ -618,4 +627,73 @@ model DeviceIntegrityEvent {
 
   @@index([student_id, created_at])
   @@index([device_id, created_at])
+}
+
+// Credentials are random per reader; only their SHA-256 digest is stored.
+model RfidReader {
+  reader_id String @id @default(uuid())
+  name String
+  room_no String @unique
+  key_hash String
+  is_active Boolean @default(true)
+  created_by String
+  created_at DateTime @default(now())
+  last_seen_at DateTime?
+  capture_id String? @unique
+  capture_until DateTime?
+  capture_hash String?
+  capture_suffix String?
+  captured_at DateTime?
+  owner User @relation(fields: [created_by], references: [user_id])
+  events RfidEvent[]
+  visits RfidVisit[]
+}
+
+// UID is a clonable bearer identifier, not biometric identity. Never store its raw value.
+model RfidCard {
+  card_id String @id @default(uuid())
+  uid_hash String @unique
+  uid_suffix String
+  student_id String
+  is_active Boolean @default(true)
+  assigned_by String
+  assigned_at DateTime @default(now())
+  revoked_at DateTime?
+  student Student @relation(fields: [student_id], references: [student_id])
+  assignedBy User @relation(fields: [assigned_by], references: [user_id])
+  @@index([student_id, is_active])
+}
+
+// Idempotent physical-tap result. Replaying an event never toggles entry/exit again.
+model RfidEvent {
+  event_id String @id
+  reader_id String
+  uid_hash String
+  uid_suffix String
+  student_id String?
+  session_id String?
+  direction String?
+  outcome String
+  received_at DateTime @default(now())
+  reader RfidReader @relation(fields: [reader_id], references: [reader_id])
+  student Student? @relation(fields: [student_id], references: [student_id])
+  session ClassSession? @relation(fields: [session_id], references: [session_id])
+  @@index([student_id, received_at])
+  @@index([reader_id, received_at])
+}
+
+model RfidVisit {
+  visit_id String @id @default(uuid())
+  reader_id String
+  student_id String
+  session_id String
+  entry_event_id String @unique
+  exit_event_id String? @unique
+  entry_at DateTime
+  exit_at DateTime?
+  reader RfidReader @relation(fields: [reader_id], references: [reader_id])
+  student Student @relation(fields: [student_id], references: [student_id])
+  session ClassSession @relation(fields: [session_id], references: [session_id])
+  @@index([session_id, student_id])
+  @@index([student_id, exit_at])
 }

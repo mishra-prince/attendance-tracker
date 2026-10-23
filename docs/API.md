@@ -141,3 +141,27 @@ All POST /auth operations require X-Requested-With: Threshold. Web/native client
 | POST | /ble/cancel/:id | Assigned teacher | Close signal without changing attendance |
 
 The former internal /ble/auto-finalize route is removed. Finalization requires the assigned teacher. The teacher still reviews and submits the class roster separately. See BLUETOOTH_SECURITY.md for exact behavior and limits.
+# Main RFID endpoints (1.3.0)
+
+`POST /api/rfid/device/tap` uses `Authorization: Bearer <reader-key>` and `X-Reader-Id`, not a human JWT. Strict body: `{eventId: UUID, uid: hex, sentAt: epochMs}`. Server chooses student/class/direction and timestamp. Outcomes include RECORDED (IN/OUT), CAPTURED, CAPTURE_WAIT, DEBOUNCED, UNKNOWN_CARD, STUDENT_INACTIVE, STALE_TAP, NO_CLASS, AMBIGUOUS_CLASS, NOT_ENROLLED and SESSION_CLOSED. Replaying the same event returns its prior result; conflicting event reuse is rejected.
+
+Other `/api/rfid` endpoints require the existing application JWT and active refresh session:
+
+| Endpoint | Scope / purpose |
+|---|---|
+| GET `/my-day?date=YYYY-MM-DD` | Student's own classes, attendance and visits |
+| GET `/day?date=YYYY-MM-DD` | Assigned teacher / HOD department / admin daily rosters |
+| GET `/export?date=YYYY-MM-DD` | Same scoped daily data, Excel-safe CSV |
+| GET/POST `/readers` | Admin list/create (key returned once on create) |
+| PATCH `/readers/:id` | Admin enable/disable |
+| POST `/readers/:id/rotate-key` | Admin revoke old key, return replacement once |
+| POST/DELETE `/readers/:id/capture` | Admin supervised capture start/cancel |
+| POST `/cards/assign` | Admin `{captureId,studentId}`, confirmed active capture |
+| GET/POST `/students` | Admin registry/register account + automatic enrollments |
+| POST `/students/import` | Admin `{sectionId,rows}`, 1–500 validated students, unique initial passwords |
+| POST `/students/:id/revoke-card` | Admin `{reason}`, revoke current card |
+| POST `/students/:id/deactivate` | Admin `{reason}`, revoke login/cards, retain records |
+| POST `/timetable` | Admin teacher assignment + validated nonoverlapping slot + enrollments |
+| GET/PUT `/policy` | Admin debounce, exit grace, maximum delivery age |
+
+No RFID endpoint accepts a demo face result as attendance evidence. See [setup](../hardware/RFID-SETUP.md) for operational semantics and [database deployment](SUPABASE-RENDER-SETUP.md).

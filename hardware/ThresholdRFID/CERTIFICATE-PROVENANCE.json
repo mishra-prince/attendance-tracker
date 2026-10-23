@@ -1,0 +1,10 @@
+{
+  "source": "https://curl.se/ca/cacert.pem",
+  "upstream": "Mozilla NSS trust store",
+  "retrieved": "2026-10-23",
+  "pem_sha256": "796f1389bfea13c0ed78f663b765baaff54a508e5483786bd6ece73c5e3e3cbe",
+  "generator": "https://raw.githubusercontent.com/espressif/esp-idf/v5.5/components/mbedtls/esp_crt_bundle/gen_crt_bundle.py",
+  "generator_sha256": "367c046ed8138862e345b59620657f5fe7ec9af3d24f618a73fc17069cd7ef35",
+  "bundle_sha256": "9d67cfc05dab24ab67d8c9270fc3562a8615e4839c30ddb2090880bf8fe0b578",
+  "bytes": 55222
+}

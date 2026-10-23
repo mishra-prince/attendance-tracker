@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: threshold-api
+    runtime: node
+    plan: free
+    region: singapore
+    rootDir: server
+    buildCommand: npm ci --include=dev && npx prisma generate && npm run build
+    startCommand: npx prisma migrate deploy && npm start
+    healthCheckPath: /ready
+    autoDeployTrigger: 'off'
+    envVars:
+      - key: NODE_VERSION
+        value: 22.22.0
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: BLE_BEACON_SECRET
+        generateValue: true
+      - key: RFID_CARD_HASH_SECRET
+        generateValue: true
+      - key: ATTENDANCE_TIMEZONE
+        value: Asia/Kolkata
+      - key: TRUST_PROXY_HOPS
+        value: '1'
+      - key: CLIENT_URL
+        value: https://localhost,capacitor://localhost
+      - key: ALLOW_DEMO_SEED
+        value: 'false'

@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom';
-import { LayoutDashboard, CalendarDays, ClipboardCheck, Settings, LogOut, Menu, X, Sparkles, KeyRound, CheckSquare, ScanFace, Bluetooth } from 'lucide-react';
+import { LayoutDashboard, CalendarDays, ClipboardCheck, Settings, LogOut, Menu, X, Sparkles, KeyRound, CheckSquare, ScanFace, Bluetooth, CreditCard } from 'lucide-react';
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useAuth } from '../store/auth';
@@ -15,12 +15,13 @@ export default function StaffLayout() {
     { to: '/staff', icon: LayoutDashboard, label: 'Overview', end: true },
     { to: '/staff/take', icon: CheckSquare, label: 'Take Attendance' },
     { to: '/staff/ble', icon: Bluetooth, label: 'Bluetooth class' },
+    { to: '/staff/rfid', icon: CreditCard, label: 'RFID attendance', end: true },
     { to: '/staff/sessions', icon: CalendarDays, label: 'Sessions' },
     { to: '/staff/approvals', icon: ClipboardCheck, label: 'Approvals' },
     { to: '/staff/analyzer', icon: Sparkles, label: 'AI Timetable' },
     { to: '/staff/join-code', icon: KeyRound, label: 'Join Code' },
     { to: '/staff/enrollment', icon: ScanFace, label: 'Enrollment' },
-    ...(isAdmin ? [{ to: '/staff/admin', icon: Settings, label: 'Admin' }] : []),
+    ...(isAdmin ? [{ to: '/staff/rfid/manage', icon: CreditCard, label: 'Students & RFID setup' }, { to: '/staff/admin', icon: Settings, label: 'Admin' }] : []),
   ];
 
   const SidebarContent = (

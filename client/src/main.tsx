@@ -22,6 +22,8 @@ const SessionsPage = React.lazy(() => import('./pages/staff/SessionsPage'));
 const SessionMark = React.lazy(() => import('./pages/staff/SessionMark'));
 const ApprovalsPage = React.lazy(() => import('./pages/staff/ApprovalsPage'));
 const AdminPage = React.lazy(() => import('./pages/staff/AdminPage'));
+const RfidAttendance = React.lazy(() => import('./pages/staff/RfidAttendance'));
+const RfidAdmin = React.lazy(() => import('./pages/staff/RfidAdmin'));
 const TimetableAnalyzer = React.lazy(() => import('./pages/staff/TimetableAnalyzer'));
 const JoinCodeStaff = React.lazy(() => import('./pages/staff/JoinCodeStaff'));
 const TakeAttendance = React.lazy(() => import('./pages/staff/TakeAttendance'));
@@ -115,6 +117,8 @@ function Shell() {
             <Route path="sessions/:id" element={<SessionMark />} />
             <Route path="approvals" element={<ApprovalsPage />} />
             <Route path="admin" element={<AdminPage />} />
+            <Route path="rfid" element={<RfidAttendance />} />
+            <Route path="rfid/manage" element={<RfidAdmin />} />
             <Route path="analyzer" element={<TimetableAnalyzer />} />
             <Route path="join-code" element={<JoinCodeStaff />} />
           </Route>

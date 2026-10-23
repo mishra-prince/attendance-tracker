@@ -7,16 +7,25 @@ import { httpError } from '../middleware/error.middleware';
 import { hashPassword } from '../utils/hash';
 import { audit, auditFromReq } from '../services/audit.service';
 import { DEFAULT_RULES } from '../services/attendance.service';
+import { ensureSectionEnrollments, registerStudent, staffStudentScope } from '../services/roster.service';
+import { RFID_DEFAULTS, RFID_LIMITS } from '../services/rfid.service';
 
 const router = Router();
 router.use(authMiddleware);
 
 // ---- Org structure CRUD (admin-managed) ----
-function crud(path: string, model: any, scope: any[], uniqueMsg: string) {
+function crud(path: string, model: string, scope: any[], uniqueMsg: string) {
   router.post(path, requireRole(...scope), async (req: AuthRequest, res, next) => {
     try {
-      const created = await model().create({ data: req.body });
-      await audit({ tableName: path, recordId: created[Object.keys(created)[0]], action: 'CREATE', changedBy: req.user!.userId, newValue: created, ...auditFromReq(req) });
+      const created = await prisma.$transaction(async (tx) => {
+        const row = await (tx as any)[model].create({ data: req.body });
+        if (model === 'subject') {
+          const sections = await tx.section.findMany({ where: { course_id: row.course_id, semester_id: row.semester_id } });
+          for (const section of sections) await ensureSectionEnrollments(tx, section.section_id);
+        }
+        await tx.auditLog.create({ data: { table_name: path, record_id: row[Object.keys(row)[0]], action: 'CREATE', changed_by: req.user!.userId, new_value: row } });
+        return row;
+      });
       res.status(201).json({ success: true, data: created });
     } catch (e: any) {
       if (e.code === 'P2002') return res.status(409).json({ success: false, error: uniqueMsg });
@@ -25,18 +34,18 @@ function crud(path: string, model: any, scope: any[], uniqueMsg: string) {
   });
   router.get(path, requireRole(...scope), async (_req, res, next) => {
     try {
-      const rows = await model().findMany({ take: 500 });
+      const rows = await (prisma as any)[model].findMany({ take: 500 });
       res.json({ success: true, data: rows });
     } catch (e) { next(e); }
   });
 }
 
-crud('/departments', () => prisma.department, ['ADMIN', 'SUPER_ADMIN'], 'Department code exists');
-crud('/academic-years', () => prisma.academicYear, ['ADMIN', 'SUPER_ADMIN'], 'Academic year exists');
-crud('/semesters', () => prisma.semester, ['ADMIN', 'SUPER_ADMIN'], 'Semester exists');
-crud('/courses', () => prisma.course, ['ADMIN', 'SUPER_ADMIN'], 'Course code exists');
-crud('/sections', () => prisma.section, ['ADMIN', 'SUPER_ADMIN'], 'Section exists');
-crud('/subjects', () => prisma.subject, ['ADMIN', 'SUPER_ADMIN'], 'Subject code exists');
+crud('/departments', 'department', ['ADMIN', 'SUPER_ADMIN'], 'Department code exists');
+crud('/academic-years', 'academicYear', ['ADMIN', 'SUPER_ADMIN'], 'Academic year exists');
+crud('/semesters', 'semester', ['ADMIN', 'SUPER_ADMIN'], 'Semester exists');
+crud('/courses', 'course', ['ADMIN', 'SUPER_ADMIN'], 'Course code exists');
+crud('/sections', 'section', ['ADMIN', 'SUPER_ADMIN'], 'Section exists');
+crud('/subjects', 'subject', ['ADMIN', 'SUPER_ADMIN'], 'Subject code exists');
 
 // read endpoints for all roles (scoped usage)
 router.get('/catalog/:entity', async (req: AuthRequest, res, next) => {
@@ -64,20 +73,16 @@ const studentSchema = z.object({
 
 router.post('/students', requireRole('ADMIN', 'SUPER_ADMIN'), validateBody(studentSchema), async (req: AuthRequest, res, next) => {
   try {
-    const { password, ...rest } = req.body;
-    const user = await prisma.user.create({
-      data: { name: rest.name, email: rest.email, password_hash: await hashPassword(password), role: 'STUDENT' },
-    });
-    const student = await prisma.student.create({ data: { ...rest, user_id: user.user_id } });
+    const student = await prisma.$transaction((tx) => registerStudent(tx, req.body, req.user!.userId), { timeout: 15_000 });
     res.status(201).json({ success: true, data: student });
   } catch (e) { next(e); }
 });
 
-router.get('/students', requireRole('TEACHER', 'HOD', 'ADMIN', 'SUPER_ADMIN'), async (req, res, next) => {
+router.get('/students', requireRole('TEACHER', 'HOD', 'ADMIN', 'SUPER_ADMIN'), async (req: AuthRequest, res, next) => {
   try {
     const { sectionId } = req.query as { sectionId?: string };
     const rows = await prisma.student.findMany({
-      where: sectionId ? { section_id: sectionId } : {},
+      where: { AND: [await staffStudentScope(prisma, req.user!), { ...(sectionId ? { section_id: sectionId } : {}), user: { is_active: true } }] },
       include: { section: true, course: true },
       take: 500,
     });
@@ -91,10 +96,13 @@ router.post('/teachers', requireRole('ADMIN', 'SUPER_ADMIN'), validateBody(z.obj
 })), async (req: AuthRequest, res, next) => {
   try {
     const { password, email, ...rest } = req.body;
-    const user = await prisma.user.create({
-      data: { name: rest.name, email, password_hash: await hashPassword(password), role: 'TEACHER' },
+    const password_hash = await hashPassword(password);
+    const teacher = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({ data: { name: rest.name, email: email.toLowerCase(), password_hash, role: 'TEACHER' } });
+      const row = await tx.teacher.create({ data: { ...rest, user_id: user.user_id } });
+      await tx.auditLog.create({ data: { table_name: 'Teacher', record_id: row.teacher_id, action: 'CREATE', changed_by: req.user!.userId, new_value: { employee_id: row.employee_id } } });
+      return row;
     });
-    const teacher = await prisma.teacher.create({ data: { ...rest, user_id: user.user_id } });
     res.status(201).json({ success: true, data: teacher });
   } catch (e) { next(e); }
 });
@@ -115,14 +123,11 @@ router.post('/bulk-import', requireRole('ADMIN', 'SUPER_ADMIN'), async (req: Aut
           const section = await prisma.section.findFirst({ where: { section_name: r.section_name, course_id: course.course_id } });
           if (!section) throw new Error(`section ${r.section_name} not found in ${r.course_code}`);
           const password = r.password || 'Password@123';
-          const user = await prisma.user.create({
-            data: { name: r.name, email: r.email, password_hash: await hashPassword(password), role: 'STUDENT' },
-          });
-          await prisma.student.create({ data: {
-            user_id: user.user_id, name: r.name, roll_no: r.roll_no, email: r.email,
-            phone: r.phone || null, course_id: course.course_id, section_id: section.section_id,
-            parent_email: r.parent_email || null, parent_phone: r.parent_phone || null,
-          }});
+          await prisma.$transaction((tx) => registerStudent(tx, {
+            name: r.name, roll_no: r.roll_no, email: r.email, password,
+            phone: r.phone || undefined, course_id: course.course_id, section_id: section.section_id,
+            parent_email: r.parent_email || undefined, parent_phone: r.parent_phone || undefined,
+          }, req.user!.userId), { timeout: 15_000 });
         } else {
           if (!r.name || !r.email || !r.employee_id || !r.department_code) throw new Error('missing fields (name,email,employee_id,department_code)');
           const dept = await prisma.department.findFirst({ where: { code: r.department_code } });
@@ -155,7 +160,17 @@ router.get('/teachers', requireRole('ADMIN', 'SUPER_ADMIN'), async (req, res, ne
 // ---- Subject-teacher assignment ----
 router.post('/subject-teachers', requireRole('ADMIN', 'SUPER_ADMIN', 'HOD'), async (req: AuthRequest, res, next) => {
   try {
-    const st = await prisma.subjectTeacher.create({ data: req.body });
+    if (req.user!.role === 'HOD') {
+      const dept = req.user!.teacherId ? await prisma.department.findUnique({ where: { hod_id: req.user!.teacherId } }) : null;
+      const section = await prisma.section.findFirst({ where: { section_id: req.body.section_id, course: { department_id: dept?.department_id || '' } } });
+      if (!section) throw httpError(403, 'Section outside your department');
+    }
+    const st = await prisma.$transaction(async (tx) => {
+      const row = await tx.subjectTeacher.create({ data: req.body });
+      await ensureSectionEnrollments(tx, row.section_id);
+      await tx.auditLog.create({ data: { table_name: 'SubjectTeacher', record_id: row.id, action: 'CREATE', changed_by: req.user!.userId } });
+      return row;
+    });
     res.status(201).json({ success: true, data: st });
   } catch (e) { next(e); }
 });
@@ -203,8 +218,12 @@ router.post('/timetable', requireRole('ADMIN', 'HOD'), async (req: AuthRequest, 
     const conflict = await prisma.timetable.findFirst({ where: overlapWhere(body) });
     if (conflict) throw httpError(409, `Timetable conflict with existing slot (${conflict.room_no}, ${conflict.day_of_week} ${conflict.start_time})`);
 
-    const row = await prisma.timetable.create({ data: { ...body, session_type: (body.session_type as any) || 'lecture', day_of_week: body.day_of_week as any } });
-    await audit({ tableName: 'Timetable', recordId: row.timetable_id, action: 'CREATE', changedBy: req.user!.userId, ...auditFromReq(req) });
+    const row = await prisma.$transaction(async (tx) => {
+      const created = await tx.timetable.create({ data: { ...body, room_no: body.room_no.trim().toUpperCase(), session_type: (body.session_type as any) || 'lecture', day_of_week: body.day_of_week as any } });
+      await ensureSectionEnrollments(tx, body.section_id);
+      await tx.auditLog.create({ data: { table_name: 'Timetable', record_id: created.timetable_id, action: 'CREATE', changed_by: req.user!.userId } });
+      return created;
+    });
     res.status(201).json({ success: true, data: row });
   } catch (e) { next(e); }
 });
@@ -222,12 +241,17 @@ router.get('/settings', async (req: AuthRequest, res, next) => {
   try {
     const rows = await prisma.settings.findMany();
     const map: Record<string, string> = Object.fromEntries(rows.map((r) => [r.key, r.value]));
-    res.json({ success: true, data: { ...DEFAULT_RULES, ...map } });
+    res.json({ success: true, data: { ...DEFAULT_RULES, ...RFID_DEFAULTS, ...map } });
   } catch (e) { next(e); }
 });
 
 router.put('/settings/:key', requireRole('ADMIN', 'SUPER_ADMIN'), validateBody(z.object({ value: z.string().min(1) })), async (req: AuthRequest, res, next) => {
   try {
+    if (req.params.key in RFID_LIMITS) {
+      const [min, max] = RFID_LIMITS[req.params.key as keyof typeof RFID_LIMITS];
+      const value = Number(req.body.value);
+      if (!Number.isInteger(value) || value < min || value > max) throw httpError(400, 'RFID policy value out of range');
+    }
     const old = await prisma.settings.findUnique({ where: { key: req.params.key } });
     const row = await prisma.settings.upsert({
       where: { key: req.params.key },

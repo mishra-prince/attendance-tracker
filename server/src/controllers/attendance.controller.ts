@@ -8,22 +8,24 @@ import { httpError } from '../middleware/error.middleware';
 import { transitionStatus, canEditAttendance } from '../services/session.service';
 import { computeStudentSummary, condonation } from '../services/attendance.service';
 import { audit, auditFromReq } from '../services/audit.service';
+import { staffSessionScope, staffStudentScope } from '../services/roster.service';
 
 const router = Router();
 router.use(authMiddleware);
 
 // A student may only read their OWN records; staff may read anyone's.
-function assertSelfOrStaff(req: AuthRequest, studentId: string) {
+async function assertSelfOrStaff(req: AuthRequest, studentId: string) {
   if (req.user!.role === 'STUDENT' && req.user!.studentId !== studentId) {
     throw httpError(403, 'Forbidden');
   }
+  if (req.user!.role !== 'STUDENT' && !await prisma.student.findFirst({ where: { AND: [{ student_id: studentId }, await staffStudentScope(prisma, req.user!)] } })) throw httpError(403, 'Student outside your classes');
 }
 
 // ---- Sessions ----
 router.get('/sessions', requireRole('TEACHER', 'HOD', 'ADMIN', 'SUPER_ADMIN'), async (req: AuthRequest, res, next) => {
   try {
     const { date, sectionId } = req.query as { date?: string; sectionId?: string };
-    const where: any = {};
+    const where: any = { AND: [await staffSessionScope(prisma, req.user!)] };
     if (date) where.date = new Date(date);
     if (sectionId) where.section_id = sectionId;
     // teachers see only their own sessions
@@ -100,9 +102,9 @@ router.post('/sessions/quick-start', requireRole('TEACHER', 'HOD', 'ADMIN', 'SUP
 
 router.get('/sessions/:id', requireRole('TEACHER', 'HOD', 'ADMIN', 'SUPER_ADMIN'), async (req: AuthRequest, res, next) => {
   try {
-    const session = await prisma.classSession.findUnique({
-      where: { session_id: req.params.id },
-      include: { subject: true, section: { include: { students: true } }, teacher: true },
+    const session = await prisma.classSession.findFirst({
+      where: { AND: [{ session_id: req.params.id }, await staffSessionScope(prisma, req.user!)] },
+      include: { subject: true, section: { include: { students: { where: { user: { is_active: true }, enrollments: { some: { status: 'active' } } } } } }, teacher: true },
     });
     if (!session) throw httpError(404, 'Session not found');
     res.json({ success: true, data: session });
@@ -126,8 +128,7 @@ router.post('/sessions/:id/attendance', requireRole('TEACHER', 'HOD', 'ADMIN', '
     const session = await prisma.classSession.findUnique({ where: { session_id: req.params.id } });
     if (!session) throw httpError(404, 'Session not found');
 
-    // RBAC: teacher must own the session; HOD handled loosely (own dept = section scope skipped in MVP)
-    if (req.user!.role === 'TEACHER' && session.teacher_id !== req.user!.teacherId) {
+    if (!await prisma.classSession.findFirst({ where: { AND: [{ session_id: session.session_id }, await staffSessionScope(prisma, req.user!)] } })) {
       throw httpError(403, 'Not your session');
     }
 
@@ -137,10 +138,15 @@ router.post('/sessions/:id/attendance', requireRole('TEACHER', 'HOD', 'ADMIN', '
       throw httpError(423, 'Session locked — submit a correction instead');
     }
 
-    // Atomic: all records land together or none do (no partial marking on mid-loop failure).
-    const results = await prisma.$transaction(
-      req.body.records.map((rec: { studentId: string; status: string }) =>
-        prisma.attendance.upsert({
+    const eligible = await prisma.student.findMany({ where: { student_id: { in: req.body.records.map((r: { studentId: string }) => r.studentId) },
+      section_id: session.section_id, user: { is_active: true }, enrollments: { some: { subject_id: session.subject_id, section_id: session.section_id, status: 'active' } } } });
+    if (new Set(req.body.records.map((r: { studentId: string }) => r.studentId)).size !== req.body.records.length || eligible.length !== req.body.records.length) throw httpError(403, 'Every student must be active and enrolled in this class');
+    const results = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT session_id FROM "ClassSession" WHERE session_id = ${session.session_id} FOR UPDATE`;
+      const current = await tx.classSession.findUniqueOrThrow({ where: { session_id: session.session_id } });
+      if (current.status === 'cancelled' || (current.status === 'locked' && !['ADMIN', 'SUPER_ADMIN'].includes(req.user!.role))) throw httpError(423, 'Session is closed');
+      const records = [];
+      for (const rec of req.body.records as { studentId: string; status: string }[]) records.push(await tx.attendance.upsert({
           where: { session_id_student_id: { session_id: session.session_id, student_id: rec.studentId } },
           update: { status: rec.status as any, marked_by: req.user!.userId, method: 'manual', marked_at: new Date() },
           create: {
@@ -150,17 +156,9 @@ router.post('/sessions/:id/attendance', requireRole('TEACHER', 'HOD', 'ADMIN', '
             marked_by: req.user!.userId,
             method: 'manual',
           },
-        })
-      )
-    );
-
-    await audit({
-      tableName: 'Attendance',
-      recordId: session.session_id,
-      action: 'CREATE',
-      changedBy: req.user!.userId,
-      newValue: { count: results.length, session: session.session_id },
-      ...auditFromReq(req),
+        }));
+      await tx.auditLog.create({ data: { table_name: 'Attendance', record_id: session.session_id, action: 'UPDATE', changed_by: req.user!.userId, new_value: { count: records.length, method: 'manual' } } });
+      return records;
     });
 
     res.status(201).json({ success: true, data: { marked: results.length } });
@@ -170,6 +168,7 @@ router.post('/sessions/:id/attendance', requireRole('TEACHER', 'HOD', 'ADMIN', '
 // ---- Attendance records ----
 router.get('/attendance/session/:sessionId', requireRole('TEACHER', 'HOD', 'ADMIN', 'SUPER_ADMIN'), async (req: AuthRequest, res, next) => {
   try {
+    if (!await prisma.classSession.findFirst({ where: { AND: [{ session_id: req.params.sessionId }, await staffSessionScope(prisma, req.user!)] } })) throw httpError(404, 'Session not found in your classes');
     const rows = await prisma.attendance.findMany({
       where: { session_id: req.params.sessionId },
       include: { student: { select: { student_id: true, name: true, roll_no: true } } },
@@ -180,7 +179,7 @@ router.get('/attendance/session/:sessionId', requireRole('TEACHER', 'HOD', 'ADMI
 
 router.get('/students/:id/attendance', async (req: AuthRequest, res, next) => {
   try {
-    assertSelfOrStaff(req, req.params.id);
+    await assertSelfOrStaff(req, req.params.id);
     const rows = await prisma.attendance.findMany({
       where: {
         student_id: req.params.id,
@@ -198,7 +197,7 @@ router.get('/students/:id/attendance', async (req: AuthRequest, res, next) => {
 
 router.get('/students/:id/attendance/summary', async (req: AuthRequest, res, next) => {
   try {
-    assertSelfOrStaff(req, req.params.id);
+    await assertSelfOrStaff(req, req.params.id);
     const subjectId = req.query.subjectId as string | undefined;
     const summary = await computeStudentSummary(req.params.id, subjectId);
     const extra = condonation(summary);

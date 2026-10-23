@@ -1,0 +1,25 @@
+{
+  "format": 1,
+  "merged_sha256": "8744aa86d96e4cdd29c80f5b11d480ebceea0b5097875c0e4cb75846f7376efb",
+  "regions": [
+    {
+      "name": "bootloader",
+      "offset": 0,
+      "length": 20224,
+      "sha256": "939725836a1e5e60f024f94762423729f843568236799ca0095db6fd5299e490"
+    },
+    {
+      "name": "partition-table",
+      "offset": 32768,
+      "length": 3072,
+      "sha256": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1"
+    },
+    {
+      "name": "application",
+      "offset": 65536,
+      "length": 1163248,
+      "sha256": "5e1892cee11ae9f25201417d3e565c2ff4ecf6284745f620ea611b0ffed02cab"
+    }
+  ],
+  "excluded_mutable_data": "NVS, OTA state, filesystem and unused application space"
+}

@@ -357,3 +357,10 @@ Rules (present/late/absent/excused/on_duty/medical → counts or excluded) are r
 ## 1.1 migration additions
 
 Migration 20261020120000_bluetooth_and_sessions brings the original migration history up to the current BLE/identity schema, restores Section.join_code and join_code_expires_at, and adds RefreshSession (hashed refresh token, user, expiry and revocation). The BlePing uniqueness on session_id, student_id and seen_at now deduplicates server-issued 30-second timestamp buckets. Auth and BLE mutations were exercised through a clean migration and real HTTP integration tests. Existing databases with untracked db-push changes require migration reconciliation before applying this migration; see BLUETOOTH_SECURITY.md.
+# Additive RFID models (1.3.0)
+
+`RfidReader` stores a unique classroom room, hashed per-reader credential, revocation state and expiring supervised-capture hash/suffix. `RfidCard` stores only a keyed UID hash and masked suffix, current student assignment and revocation history through audit. One active card per student is enforced by a partial unique index. Physical UIDs remain clonable identifiers.
+
+`RfidEvent` is an immutable application event keyed by reader-generated UUID, with server-received timestamp/outcome and resolved student/class/direction. `RfidVisit` stores separate entry/exit intervals and unique event references, with one open interval per student/session. `ClassSession.room_no` snapshots classroom location. `AttendanceMethod.RFID` uses the existing session attendance table and single percentage service. Mutations are transactionally audited; no delete-history feature is added.
+
+Migration `20261023030000_rfid_attendance` preserves existing records, backfills session rooms and creates missing active section subject enrollments without reactivating dropped/completed enrollments. Fresh installs use the normal Prisma migration chain. The existing Supabase project required separately verified schema-history reconciliation; see [deployment record](SUPABASE-RENDER-SETUP.md). Raw credentials, card UIDs, face images and student exports must not be committed.

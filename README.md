@@ -1,6 +1,14 @@
 # Threshold — Attendance Tracker
 
-A college attendance app for Android and the web. Students check in using their phones; teachers review and submit session attendance. No RFID cards or tags are required.
+A college attendance app for Android and the web. Supports classroom RFID readers, phone check-in and teacher review of session attendance.
+
+## Threshold 1.3.0 — main RFID attendance
+
+[Download Threshold 1.3.0 APK](https://github.com/mishra-prince/attendance-tracker/raw/refs/heads/master/downloads/threshold-1.3.0-test.apk) · [ESP32-S3 + RC522 wiring and setup](hardware/RFID-SETUP.md) · [Supabase + free Render setup](docs/SUPABASE-RENDER-SETUP.md) · [Build report](downloads/RFID-1.3-BUILD-REPORT.md)
+
+Admin registers students, imports a class using the included workbook, manages cards/readers and deactivates leaving students while retaining history. Section subject enrollments populate teacher rosters automatically. A registered card tap during the room's timetable slot records IN and marks present; the next valid tap records OUT. Students see their daily class attendance, teachers see assigned class lists and admin manages all. Daily exports open in Excel. These are authenticated **main features** in the original `com.attendance.tracker`, with the existing login flows and test signing certificate.
+
+The existing Supabase database was updated additively and client database access is blocked. The API also needs its Render deployment, private database connection and working HTTPS domain; GitHub publication alone does not run it. The APK still targets the owner-confirmed `https://att.threshold.dpdns.org`. RFID proves card presence; it does not prevent lending/cloning or establish a live face. Hardware and actual-phone tests remain pending. The earlier face/ESP classroom demo below remains available separately inside the same app.
 
 ## Threshold 1.2.1 — same-app submission for 23 October 2026
 
@@ -16,7 +24,7 @@ The user-run S3 write passed its immediate hash check but the later whole-image 
 
 The [downloads folder](downloads/README.md) contains the test APKs, Room Lab pilot kit, compiled ESP32-C3/S3 firmware, setup guides and attendance research report.
 
-- [Download the current Threshold 1.2.1 Android test APK](https://github.com/mishra-prince/attendance-tracker/raw/refs/heads/master/downloads/threshold-1.2.1-test.apk) — embedded classroom demo works offline; real attendance needs the updated backend.
+- [Download the current Threshold 1.3.0 Android test APK](https://github.com/mishra-prince/attendance-tracker/raw/refs/heads/master/downloads/threshold-1.3.0-test.apk) — main RFID features require the deployed API; embedded face demo works offline.
 - [Previous Threshold 1.1.0 Android test APK](https://github.com/mishra-prince/attendance-tracker/raw/refs/heads/master/downloads/threshold-1.1.0-test.apk) — retained historical build.
 - [Download the offline Room Lab Android test APK](https://github.com/mishra-prince/attendance-tracker/raw/refs/heads/master/downloads/threshold-room-lab-0.1.0-test.apk) — room-calibration measurements only.
 - [Room Lab setup guide](downloads/ROOM-LAB-QUICKSTART.md) and [research and pilot plan](downloads/ATTENDANCE-RESEARCH-AND-PILOT.md).

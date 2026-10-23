@@ -4,7 +4,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { api, errMsg } from '../../lib/api';
 import { RowSkeleton, Skeleton } from '../../components/skeletons';
 
-interface Rec { studentId: string; roll_no: string; name: string; status: string }
+interface Rec { studentId: string; roll_no: string; name: string; status: string; dirty?: boolean }
 interface Sess { session_id: string; status: string; subject: { subject_name: string; subject_code: string }; section: { section_name: string } }
 
 export default function SessionMark() {
@@ -21,25 +21,25 @@ export default function SessionMark() {
       api.get(`/attendance/session/${id}`),
     ]).then(([s, a]) => {
       setSess(s.data.data);
-      setRows(a.data.data.map((r: any) => ({
-        studentId: r.student.student_id,
-        roll_no: r.student.roll_no,
-        name: r.student.name,
-        status: r.status,
-      })));
+      const students = new Map<string, { student_id: string; roll_no: string; name: string }>();
+      for (const student of s.data.data.section.students) students.set(student.student_id, student);
+      for (const record of a.data.data) students.set(record.student.student_id, record.student);
+      setRows([...students.values()].map((student) => ({ studentId: student.student_id, roll_no: student.roll_no, name: student.name,
+        status: a.data.data.find((r: any) => r.student.student_id === student.student_id)?.status || 'unmarked', dirty: false })));
     }).catch((e) => setErr(errMsg(e)));
   }, [id]);
 
   function setStatus(studentId: string, status: string) {
-    setRows((rs) => rs.map((r) => (r.studentId === studentId ? { ...r, status } : r)));
+    setRows((rs) => rs.map((r) => (r.studentId === studentId ? { ...r, status, dirty: true } : r)));
   }
 
   async function save() {
     setMsg(''); setErr('');
     try {
       await api.post(`/sessions/${id}/attendance`, {
-        records: rows.map((r) => ({ studentId: r.studentId, status: r.status })),
+        records: rows.filter((r) => r.dirty).map((r) => ({ studentId: r.studentId, status: r.status })),
       });
+      setRows((rs) => rs.map((r) => ({ ...r, dirty: false })));
       setMsg('✓ Saved');
     } catch (e) { setErr(errMsg(e)); }
   }
@@ -100,6 +100,7 @@ export default function SessionMark() {
             <div>
               <div className="font-medium">{r.name}</div>
               <div className="text-muted text-xs">{r.roll_no}</div>
+              <div className="text-xs text-ash mt-1">Recorded: {r.status}</div>
             </div>
             <div className="flex gap-1.5">
               {['present', 'absent', 'late'].map((st) => (
@@ -116,7 +117,8 @@ export default function SessionMark() {
         ))}
       </div>
 
-      <button className="btn-primary w-fit" onClick={save}>Save attendance</button>
+      <button className="btn-primary w-fit" onClick={save} disabled={!rows.some((r) => r.dirty)}>Save changed attendance</button>
+      <p className="text-xs text-muted">Only your selected changes are saved. Use RFID attendance for live entry and exit times.</p>
       {msg && <div className="text-ash text-sm">{msg}</div>}
       {err && <div className="text-signal text-sm">{err}</div>}
     </div>

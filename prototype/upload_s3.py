@@ -43,6 +43,7 @@ def main():
     parser.add_argument("--python", required=True, help="Python with esptool 4.12 installed")
     parser.add_argument("--firmware", required=True)
     parser.add_argument("--backup-dir", required=True, help="Private directory outside the repository")
+    parser.add_argument("--purpose", choices=("demo", "rfid"), default="demo")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--flash", action="store_true", help="After a full backup, write and verify the demo image")
     mode.add_argument("--verify-only", action="store_true", help="Verify installed code without backing up or writing flash")
@@ -91,7 +92,7 @@ def main():
     if args.verify_only:
         print("Verifying bootloader, partition table and application. No backup or flash write will run…", flush=True)
         run("verify_flash", *FLASH_OPTIONS, *verify_arguments)
-        print("Firmware code verified. No flash was erased or rewritten. Press RESET, then use Find ESP32 in Threshold.", flush=True)
+        print("Firmware code verified. No flash was erased or rewritten. Press RESET.", flush=True)
         return
     print("ESP32-S3 confirmed; " + size[1] + " MB flash. Backing up ALL existing flash…", flush=True)
     saved = backup / "original-full-flash.bin"
@@ -104,12 +105,16 @@ def main():
     if not args.flash:
         print("Backup complete. No firmware changed. Use --flash to program the demo.")
         return
-    print("Writing the known 4 MB prototype layout; remaining capacity is unused…", flush=True)
+    print("Writing the verified 4 MB firmware layout; remaining capacity is unused…", flush=True)
     run("write_flash", *FLASH_OPTIONS, "0x0", str(firmware))
     run("verify_flash", *FLASH_OPTIONS, *verify_arguments)
-    print("Firmware code verified. ESP32-S3 should now advertise the A17C inside beacon.", flush=True)
-    print("Open Threshold → Classroom demo → Find ESP32 on an Android phone to confirm radio reception.")
-    print("Physical Bluetooth reception still needs that phone check. No secure-boot/encryption fuse was modified.")
+    if args.purpose == "rfid":
+        print("RFID firmware code verified. Provision Wi-Fi and the reader credential using hardware/PROVISION-RFID-MAC.command.", flush=True)
+        print("Physical RC522, Wi-Fi, TLS and attendance taps still require testing. No security fuse was modified.")
+    else:
+        print("Firmware code verified. ESP32-S3 should now advertise the A17C inside beacon.", flush=True)
+        print("Open Threshold → Classroom demo → Find ESP32 on an Android phone to confirm radio reception.")
+        print("Physical Bluetooth reception still needs that phone check. No secure-boot/encryption fuse was modified.")
 
 
 if __name__ == "__main__":

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { useAuth } from '../../store/auth';
 import { RowSkeleton } from '../../components/skeletons';
+import RfidDayView from '../../components/RfidDayView';
 
 interface Att {
   attendance_id: string;
@@ -28,7 +29,8 @@ export default function StudentSessions() {
 
   return (
     <div className="p-6 flex flex-col gap-3">
-      <div className="text-bone text-lg font-semibold">My attendance</div>
+      <RfidDayView student />
+      <div className="text-bone text-lg font-semibold mt-5">Attendance history</div>
       {loading && <><RowSkeleton /><RowSkeleton /><RowSkeleton /></>}
       {err && <div role="alert" className="text-signal text-sm">{err}</div>}
       {rows.map((a) => (

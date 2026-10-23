@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, errMsg } from '../../lib/api';
 import { FLAGS_META, useFlags } from '../../lib/features';
 import { useAuth } from '../../store/auth';
+import { Link } from 'react-router-dom';
 
 type Row = Record<string, string>;
 
@@ -118,6 +119,7 @@ export default function AdminPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="text-bone text-lg font-semibold">Admin</div>
+      <Link to="/staff/rfid/manage" className="glass-medium rounded-2xl p-5 block"><span className="font-semibold">Register students & manage RFID →</span><span className="block text-sm text-ash mt-1">Class and section rosters, card registration/reset, readers and students leaving college.</span></Link>
 
       {/* Minimum attendance setting */}
       <div className="glass-medium rounded-2xl p-5 flex flex-col gap-3 w-full max-w-sm">

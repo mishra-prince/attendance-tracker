@@ -11,7 +11,9 @@ import aiRoutes from './controllers/ai.controller';
 import classroomRoutes from './controllers/classroom.controller';
 import bleRoutes from './controllers/ble.controller';
 import enrollmentRoutes from './controllers/enrollment.controller';
+import rfidRoutes from './controllers/rfid.controller';
 import { errorMiddleware } from './middleware/error.middleware';
+import { prisma } from './utils/prisma';
 
 const app = express();
 
@@ -31,8 +33,17 @@ app.use(express.json({ limit: '5mb' }));
 app.use(cookieParser());
 
 app.get('/health', (_req, res) => res.json({ success: true, data: { status: 'ok', time: new Date().toISOString() } }));
+app.get('/ready', async (_req, res) => {
+  try {
+    await prisma.rfidReader.count();
+    res.json({ success: true, data: { status: 'ready' } });
+  } catch {
+    res.status(503).json({ success: false, error: 'Database or RFID migration is unavailable' });
+  }
+});
 
 app.use('/api/auth', authRoutes);
+app.use('/api/rfid', rfidRoutes);
 app.use('/api', attendanceRoutes);
 app.use('/api', leaveRoutes);
 app.use('/api', adminRoutes);

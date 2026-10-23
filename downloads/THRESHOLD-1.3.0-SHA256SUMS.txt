@@ -1,0 +1,4 @@
+7ffe2167245ab982a5f2ff7886db5830243e4941c9b486ec9043ec454fc0ab9a  downloads/threshold-1.3.0-test.apk
+8744aa86d96e4cdd29c80f5b11d480ebceea0b5097875c0e4cb75846f7376efb  hardware/firmware/threshold-rfid-s3-1.3.0.merged.bin
+3659bbe9c50f0c27f7fb9b9d6ab050edaafd2a045ddb89b7f96cfeea5a05be3d  hardware/firmware/threshold-rfid-s3-1.3.0.merged.bin.verify.json
+acf31d1bf5b6f0ddaeb1d462f2f6f8e54f2c5b01befbb7362b4d9c4a2d303981  client/public/threshold-student-template.xlsx

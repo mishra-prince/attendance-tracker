@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { ensureSectionEnrollments } from '../services/roster.service';
 import { prisma } from '../utils/prisma';
 import { authMiddleware, requireRole, AuthRequest } from '../middleware/auth.middleware';
 import { httpError } from '../middleware/error.middleware';
@@ -156,6 +157,7 @@ router.post('/commit-timetable', requireRole('TEACHER', 'HOD', 'ADMIN', 'SUPER_A
         skipped.push({ ...s, reason: (e.message || 'error').slice(0, 600) });
       }
     }
+    await prisma.$transaction((tx) => ensureSectionEnrollments(tx, sectionId));
     res.status(201).json({ success: true, data: { created: created.length, skipped } });
   } catch (e) { next(e); }
 });
