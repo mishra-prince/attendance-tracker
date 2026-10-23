@@ -98,6 +98,9 @@ export async function recordTap(input: { eventId: string; uid: string; sentAt: n
       const active = slots.filter((slot) => { const b = sessionBounds({ ...slot, date }, rfidZone()); return now >= b.start && now < b.end; });
       if (active.length !== 1) return finish(active.length ? 'AMBIGUOUS_CLASS' : 'NO_CLASS');
       const slot = active[0];
+      // Share the creation lock with teacher quick-start, so simultaneous entry
+      // and teacher actions reuse one class session.
+      await tx.$queryRaw`SELECT timetable_id FROM "Timetable" WHERE timetable_id = ${slot.timetable_id} FOR UPDATE`;
       const classes = await tx.classSession.findMany({ where: { date, OR: [{ timetable_id: slot.timetable_id },
         { room_no: reader.room_no, section_id: slot.section_id, subject_id: slot.subject_id, start_time: slot.start_time, end_time: slot.end_time }] } });
       if (classes.length > 1) return finish('AMBIGUOUS_CLASS');

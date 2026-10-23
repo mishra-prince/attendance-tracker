@@ -107,6 +107,12 @@ describe.sequential('Main RFID attendance: real HTTP, database, lifecycle and ac
     expect(await prisma.rfidVisit.count()).toBe(1);expect(await prisma.auditLog.count()).toBe(before);
     expect((await tap('11223344',firstEvent)).status).toBe(409);
   });
+  it('reuses the RFID class on teacher quick-start and keeps other staff out',async()=>{
+    expect((await req('/sessions/quick-start','other',{timetableId:id.slot})).status).toBe(404);
+    const response=await req('/sessions/quick-start','teacher',{timetableId:id.slot});expect(response.status).toBe(201);
+    expect((await response.json()).data.session_id).toBe(sessionId);
+    expect(await prisma.classSession.count({where:{timetable_id:id.slot,date:new Date('2026-10-23')}})).toBe(1);
+  });
   it('debounces rapid scans, then records exit and later re-entry as separate intervals',async()=>{
     expect((await result(await tap())).outcome).toBe('DEBOUNCED');advance();expect((await result(await tap())).direction).toBe('OUT');
     let visits=await prisma.rfidVisit.findMany();expect(visits[0].exit_at?.getTime()).toBe(Date.now());

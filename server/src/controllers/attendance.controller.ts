@@ -9,6 +9,7 @@ import { transitionStatus, canEditAttendance } from '../services/session.service
 import { computeStudentSummary, condonation } from '../services/attendance.service';
 import { audit, auditFromReq } from '../services/audit.service';
 import { staffSessionScope, staffStudentScope } from '../services/roster.service';
+import { campusDate } from '../services/bleEvidence.service';
 
 const router = Router();
 router.use(authMiddleware);
@@ -78,24 +79,30 @@ router.post('/sessions/generate', requireRole('HOD', 'ADMIN', 'SUPER_ADMIN'), as
 // Idempotent — returns the existing session if it already exists.
 router.post('/sessions/quick-start', requireRole('TEACHER', 'HOD', 'ADMIN', 'SUPER_ADMIN'), validateBody(z.object({ timetableId: z.string().min(1) })), async (req: AuthRequest, res, next) => {
   try {
-    const slot = await prisma.timetable.findUnique({ where: { timetable_id: req.body.timetableId } });
+    const slot = await prisma.timetable.findFirst({ where: { AND: [{ timetable_id: req.body.timetableId, is_active: true }, await staffSessionScope(prisma, req.user!)] } });
     if (!slot) throw httpError(404, 'Timetable slot not found');
     if (req.user!.role === 'TEACHER' && slot.teacher_id !== req.user!.teacherId) {
       throw httpError(403, 'Not your class');
     }
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    let session = await prisma.classSession.findFirst({ where: { timetable_id: slot.timetable_id, date: today } });
-    if (!session) {
-      session = await prisma.classSession.create({
+    const today = new Date(campusDate(new Date(), process.env.ATTENDANCE_TIMEZONE || 'Asia/Kolkata'));
+    const session = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT timetable_id FROM "Timetable" WHERE timetable_id = ${slot.timetable_id} FOR UPDATE`;
+      let row = await tx.classSession.findFirst({ where: { timetable_id: slot.timetable_id, date: today } });
+      if (!row) {
+        row = await tx.classSession.create({
         data: {
-          timetable_id: slot.timetable_id, subject_id: slot.subject_id, section_id: slot.section_id,
+          timetable_id: slot.timetable_id, room_no: slot.room_no, subject_id: slot.subject_id, section_id: slot.section_id,
           teacher_id: slot.teacher_id, date: today, start_time: slot.start_time, end_time: slot.end_time,
           session_type: slot.session_type, status: 'open',
         },
-      });
-    } else if (session.status === 'scheduled') {
-      session = await prisma.classSession.update({ where: { session_id: session.session_id }, data: { status: 'open' } });
-    }
+        });
+        await tx.auditLog.create({ data: { table_name: 'ClassSession', record_id: row.session_id, action: 'CREATE', changed_by: req.user!.userId, new_value: { source: 'QUICK_START', status: 'open' } } });
+      } else if (row.status === 'scheduled') {
+        row = await tx.classSession.update({ where: { session_id: row.session_id }, data: { status: 'open' } });
+        await tx.auditLog.create({ data: { table_name: 'ClassSession', record_id: row.session_id, action: 'UPDATE', changed_by: req.user!.userId, new_value: { source: 'QUICK_START', status: 'open' } } });
+      }
+      return row;
+    });
     res.status(201).json({ success: true, data: session });
   } catch (e) { next(e); }
 });
@@ -104,10 +111,12 @@ router.get('/sessions/:id', requireRole('TEACHER', 'HOD', 'ADMIN', 'SUPER_ADMIN'
   try {
     const session = await prisma.classSession.findFirst({
       where: { AND: [{ session_id: req.params.id }, await staffSessionScope(prisma, req.user!)] },
-      include: { subject: true, section: { include: { students: { where: { user: { is_active: true }, enrollments: { some: { status: 'active' } } } } } }, teacher: true },
+      include: { subject: true, section: true, teacher: true },
     });
     if (!session) throw httpError(404, 'Session not found');
-    res.json({ success: true, data: session });
+    const students = await prisma.student.findMany({ where: { section_id: session.section_id, user: { is_active: true },
+      enrollments: { some: { subject_id: session.subject_id, section_id: session.section_id, status: 'active' } } } });
+    res.json({ success: true, data: { ...session, section: { ...session.section, students } } });
   } catch (e) { next(e); }
 });
 
