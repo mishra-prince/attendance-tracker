@@ -40,6 +40,10 @@ Use `npm ci`, `npx prisma generate`, `npx prisma migrate deploy`, four distinct 
 
 After each future Supabase schema change, apply `server/deploy/supabase-hardening.sql` for listed app tables and inspect grants/RLS/advisors. New tables must receive the same explicit server-only review. If introducing direct Supabase Auth/Data API access later, design role- and ownership-based policies first; the app's JWT is not a Supabase Auth token.
 
-## Initial Render connection diagnosis
+## Verified live deployment
 
-The free service threshold-api (srv-dbdrqrrncjis73d9n3pg) built commit 3267c5b successfully. Its initial launch failed with Prisma P1001 because DATABASE_URL used the IPv6 direct host db.osdousdloxpcxdpszqtc.supabase.co. The correct IPv4 Session-pooler host is aws-0-ap-south-1.pooler.supabase.com, port 5432, username postgres.osdousdloxpcxdpszqtc. The owner must edit that private environment value and redeploy. Never copy the password into this document. Readiness remains pending until /ready returns HTTP 200.
+The free service `threshold-api` (`srv-dbdrqrrncjis73d9n3pg`) successfully deployed commit `e9108c9` on 24 October 2026 at 01:45:51 IST. Render connected through the IPv4 Session pooler and confirmed all three Prisma migrations were applied, with none pending. The server started on Render's assigned port.
+
+External HTTPS checks passed: `/ready` returned HTTP 200 with `status: ready`; unauthenticated reader-management and device-tap requests returned HTTP 401; a nonexistent account login returned HTTP 401 rather than a database error. The APK origin `https://localhost` received the expected credential-enabled CORS preflight response. These checks did not create accounts or attendance. Actual institution login and physical reader/phone tests remain pending.
+
+For future connection failures: Prisma P1001 with the direct IPv6 host requires the IPv4 Session-pooler host `aws-0-ap-south-1.pooler.supabase.com`, port 5432, username `postgres.osdousdloxpcxdpszqtc`. P1012 about the protocol means Render needs the complete `postgresql://...` connection string, not only the username or a `DATABASE_URL=` assignment. The local formatter above handles this without posting passwords in chat or GitHub.

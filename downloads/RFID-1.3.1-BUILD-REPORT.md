@@ -20,9 +20,13 @@ The owner-approved API origin is https://threshold-api-j5wk.onrender.com in the 
 - APK signature verified against previous Threshold releases: SHA-256 certificate `bca7e1406cb3f713aceeab3d6b50aee0d015933c321e73c046b77b29cdfcfdca`. Android package/version read from the APK. Artifact hashes are in `THRESHOLD-1.3.1-SHA256SUMS.txt`.
 - ESP32-S3 firmware compiled with Arduino-ESP32 3.3.2, MFRC522 1.4.12 and ArduinoJson 7.4.2. 1,163,099 program bytes (88% of the application partition), 45,184 static RAM bytes. Merged image is 4 MB. Bootloader/table/application slices match the immutable verification manifest. **11 simulated uploader safety tests** passed without opening a physical serial device.
 
+## Live deployment verified
+
+On 24 October 2026, Render successfully deployed backend commit `e9108c9` using the existing Supabase Session-pooler connection. All three migrations were recognized with none pending. External HTTPS readiness returned HTTP 200. Unauthenticated RFID management/device requests and a nonexistent-account login correctly returned HTTP 401. The APK origin's CORS preflight returned HTTP 204 with credentials allowed for exactly `https://localhost`. No real attendance or student data was created by these deployment checks.
+
 ## Still pending
 
-Successful Render launch after correcting its private Session-pooler connection, actual institution login, physical S3 flash verification, RC522 wiring/read/tap tests, Wi-Fi/NTP/TLS tests and phone install/file chooser tests. These are not established by compilation or database migration. The source publication includes a free Render Blueprint; free cold starts can exceed the reader retry window.
+Actual institution login, physical S3 flash verification, RC522 wiring/read/tap tests, Wi-Fi/NTP/TLS tests and phone install/file chooser tests. These are not established by compilation or database migration. Free Render cold starts can exceed the reader retry window; wake and verify `/ready` before collecting attendance.
 
 No 95% reliability, corridor containment, battery life, iPhone/locked-phone support or validated face spoof resistance is claimed. RFID UIDs can be lent/cloned. IN marks present immediately; dwell duration is not an eligibility threshold. Lost checkout taps remain missing. The retained local face demo does not award actual attendance or replace supervised institutional enrollment.
 
