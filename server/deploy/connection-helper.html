@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<title>Threshold database connection</title>
+<style>body{font:17px/1.6 system-ui,sans-serif;background:#101319;color:#eef1f5;margin:0;padding:32px 20px}main{max-width:650px;margin:auto}h1{font-size:28px;line-height:1.25}label{display:block;margin-top:24px}input,button,textarea{box-sizing:border-box;font:inherit;border-radius:10px;padding:13px;width:100%;margin-top:8px}input,textarea{background:#1c2230;color:#fff;border:1px solid #586278}button{background:#fc745e;color:#171b25;font-weight:650;border:0;cursor:pointer;margin-top:18px}p{color:#b9c4d6}#status{color:#9be0b7}a{color:#ff9b87}code{font-size:14px}textarea{font-size:13px;height:140px}</style>
+<main><h1>Connect Threshold to Supabase</h1>
+<p>This local page formats your database password for Render. It makes no network requests and saves nothing to a file.</p>
+<p>Project: <strong>attendance-tracker</strong><br>Connection: <strong>Session pooler, Mumbai</strong></p>
+<label for="password">Your Supabase database password</label><input id="password" type="password" autocomplete="off" spellcheck="false" placeholder="Enter privately here, never in chat">
+<button id="copy">Copy complete database connection</button><p id="status" role="status"></p>
+<textarea id="fallback" hidden readonly aria-label="Complete private connection string"></textarea>
+<p>In Render, click <strong>Edit</strong> under Environment. Replace the entire <code>DATABASE_URL</code> value with what you copied. Choose <strong>Save, rebuild, and deploy</strong>.</p>
+<p>Your password stays private. Close this helper after pasting into Render.</p>
+<a href="https://dashboard.render.com/web/srv-dbdrqrrncjis73d9n3pg/env" target="_blank" rel="noreferrer">Open Render Environment</a></main>
+<script>
+const password=document.getElementById('password'),status=document.getElementById('status'),fallback=document.getElementById('fallback');
+document.getElementById('copy').addEventListener('click',async()=>{
+ if(!password.value){status.textContent='Enter your database password first.';password.focus();return;}
+ const url='postgresql://postgres.osdousdloxpcxdpszqtc:'+encodeURIComponent(password.value)+'@aws-0-ap-south-1.pooler.supabase.com:5432/postgres?schema=public&sslmode=require&sslaccept=strict&connection_limit=3&pool_timeout=15';
+ try{await navigator.clipboard.writeText(url);password.value='';fallback.value='';fallback.hidden=true;status.textContent='Copied. Paste into the DATABASE_URL value in Render, then save, rebuild and deploy.';}
+ catch{fallback.value=url;fallback.hidden=false;fallback.focus();fallback.select();status.textContent='Press Command+C to copy the selected complete connection, then paste it into Render.';}
+});
+window.addEventListener('pagehide',()=>{password.value='';fallback.value='';});
+</script></html>

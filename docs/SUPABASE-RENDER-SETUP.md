@@ -24,6 +24,16 @@ The repository's `render.yaml` defines **one free Node web service**, using the 
 
 Automatic deployments are off in this Blueprint so unreviewed pushes do not immediately change the running attendance API. Trigger a deploy after reviewing/tested updates. Never run `prisma migrate reset`, `db push --force-reset` or the seed script against this database.
 
+## Private connection formatter on the prepared Mac
+
+If formatting DATABASE_URL is difficult, serve `server/deploy/connection-helper.html` locally from the repository:
+
+```sh
+python3 -m http.server 8769 --bind 127.0.0.1 --directory server/deploy
+```
+
+Open `http://127.0.0.1:8769/connection-helper.html` on that same Mac. Enter the existing Supabase database password and click **Copy complete database connection**. Paste over the entire DATABASE_URL value in Render's Environment editor, then choose Save, rebuild, and deploy. The helper encodes special characters, uses the verified session-pooler host/username, blocks network requests via CSP and does not save the password. Close it when done. It is a formatter, not a database-password reset tool. Never paste only the username or an `DATABASE_URL=` assignment into the Render value field.
+
 ## New/fresh installations
 
 Use `npm ci`, `npx prisma generate`, `npx prisma migrate deploy`, four distinct secrets from `server/.env.example`, and the usual private first-admin provisioning process. Do not copy this project's schema-history repair SQL or demo accounts into a different database. Use institution-issued credentials; no universal APK ID/password is provided.
