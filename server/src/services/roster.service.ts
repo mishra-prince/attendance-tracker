@@ -30,7 +30,7 @@ export async function registerStudent(tx: Tx, input: {
     new_value: { name: student.name, roll_no: student.roll_no, section_id: student.section_id, enrollments_created: synced.count } } });
   return student;
 }
-export async function staffSessionScope(tx: Tx, user: AccessPayload): Promise<Pick<Prisma.ClassSessionWhereInput, 'teacher_id' | 'section'>> {
+export async function staffSessionScope(tx: Tx, user: AccessPayload): Promise<{ teacher_id?: string; section?: { course: { department_id: string } } }> {
   if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') return {};
   if (user.role === 'TEACHER' && user.teacherId) return { teacher_id: user.teacherId };
   if (user.role === 'HOD' && user.teacherId) {
