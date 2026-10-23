@@ -11,6 +11,8 @@ let db: PGlite, socket: PGLiteSocketServer, server: Server, prisma: PrismaClient
 const id = Object.fromEntries(['admin','teacherUser','otherUser','hodUser','teacher','otherTeacher','hod','dept','otherDept','course','otherCourse','year','semester','section','otherSection','subject','slot'].map((k) => [k,randomUUID()]));
 const tokens: Record<string,string> = {};
 let student: any, second: any, reader: any, otherReader: any, sessionId: string, firstEvent: string;
+const visionMock = vi.hoisted(() => vi.fn());
+vi.mock('../src/services/faceVision.service', async(importOriginal) => ({...await importOriginal<typeof import('../src/services/faceVision.service')>(), inspectFace: visionMock, checkFaceWorker: vi.fn().mockResolvedValue(undefined)}));
 const password = 'TestPassword!123';
 async function req(path: string, actor = 'admin', body?: unknown, method = body === undefined ? 'GET' : 'POST') {
   return fetch(base+'/api'+path,{method,headers:{'Content-Type':'application/json','X-Requested-With':'Threshold',...(tokens[actor]?{Authorization:'Bearer '+tokens[actor]}:{})},body:body===undefined?undefined:JSON.stringify(body)});
@@ -33,10 +35,10 @@ async function newStudent(roll: string) {
   expect(r.status).toBe(201);return (await r.json()).data;
 }
 beforeAll(async()=>{
-  vi.stubEnv('NODE_ENV','test');vi.stubEnv('JWT_SECRET','rfid-integration-access-secret-1234567890');vi.stubEnv('JWT_REFRESH_SECRET','rfid-integration-refresh-secret-1234567890');
+  vi.stubEnv('FACE_VISION_ENABLED','true');vi.stubEnv('NODE_ENV','test');vi.stubEnv('JWT_SECRET','rfid-integration-access-secret-1234567890');vi.stubEnv('JWT_REFRESH_SECRET','rfid-integration-refresh-secret-1234567890');
   vi.stubEnv('BLE_BEACON_SECRET','rfid-integration-ble-secret-1234567890');vi.stubEnv('RFID_CARD_HASH_SECRET','rfid-integration-hash-secret-1234567890');vi.stubEnv('ATTENDANCE_TIMEZONE','Asia/Kolkata');
   db=await PGlite.create();
-  for(const file of ['20260916052028_init','20261020120000_bluetooth_and_sessions','20261023030000_rfid_attendance']) await db.exec(await readFile(new URL('../prisma/migrations/'+file+'/migration.sql',import.meta.url),'utf8'));
+  for(const file of ['20260916052028_init','20261020120000_bluetooth_and_sessions','20261023030000_rfid_attendance','20261024030000_permanent_face']) await db.exec(await readFile(new URL('../prisma/migrations/'+file+'/migration.sql',import.meta.url),'utf8'));
   socket=new PGLiteSocketServer({db,host:'127.0.0.1',port:5551});await socket.start();
   vi.stubEnv('DATABASE_URL','postgresql://postgres:postgres@127.0.0.1:5551/postgres?connection_limit=1');prisma=(await import('../src/utils/prisma')).prisma;await prisma.$connect();
   const hash=await bcrypt.hash(password,4);
@@ -164,6 +166,78 @@ describe.sequential('Main RFID attendance: real HTTP, database, lifecycle and ac
   it('validates dates and administrator timing policy',async()=>{
     expect((await req('/rfid/my-day?date=2026-02-31','student')).status).toBe(400);
     expect((await req('/rfid/policy','admin',{rfid_debounce_seconds:0,rfid_exit_grace_minutes:15,rfid_event_max_age_seconds:30},'PUT')).status).toBe(400);
+  });
+  it('requires supervised scoped capture and never accepts client liveness booleans',async()=>{
+    const body={studentId:student.student_id,enrollmentMethod:'INSTITUTIONAL_ID_CARD',idConfirmed:true,consentRecorded:true};
+    expect((await req('/enrollment/biometric','teacher',{...body,livenessPassed:true})).status).toBe(410);
+    expect((await req('/face/enroll/challenge','student',body)).status).toBe(403);
+    expect((await req('/face/enroll/challenge','other',body)).status).toBe(404);
+    expect((await req('/enrollment/biometric/'+student.student_id,'other')).status).toBe(404);
+    expect((await req('/face/enroll/challenge','teacher',{...body,consentRecorded:false})).status).toBe(400);
+    expect((await req('/face/enroll/challenge','teacher',{...body,replace:true})).status).toBe(403);
+    expect(await prisma.biometricEnrollment.count()).toBe(0);
+  });
+  it('uses server inference, binds challenges to actor/session, and combines faces with RFID',async()=>{
+    const faceStudent=await newStudent('F001');await login('faceStudent','f001@test.invalid','student');
+    const body={studentId:faceStudent.student_id,enrollmentMethod:'INSTITUTIONAL_ID_CARD',idConfirmed:true,consentRecorded:true};
+    let sequence=0;
+    const packet=()=>({frames:Array.from({length:12},(_,i)=>({atMs:i*160,jpeg:Buffer.from(('camera-evidence-'+(++sequence)+'-'+i).repeat(12)).toString('base64')}))});
+    const observations=(actions:string[])=>{
+      const vector=Array.from({length:128},(_,i)=>i===0?1:0);
+      const neutral=()=>({atMs:0,yaw:0,pitch:0,leftBlink:0,rightBlink:0,smile:0,neutral:true,vector});
+      const frames=[neutral(),neutral(),neutral()];
+      for(const action of actions){const f:any={...neutral(),neutral:false,vector:null};
+        if(action==='BLINK')f.leftBlink=f.rightBlink=.9;else if(action==='SMILE')f.smile=.9;else if(action==='TURN_LEFT')f.yaw=28;else if(action==='TURN_RIGHT')f.yaw=-28;else if(action==='LOOK_UP')f.pitch=24;else f.pitch=-24;
+        frames.push(f,f,...(action==='BLINK'?[neutral(),neutral()]:[]),neutral(),neutral(),neutral());}
+      return frames.map((f,i)=>({...f,atMs:i*160}));
+    };
+    const issue=async(actor:string,path:string,data:any)=>{const r=await req(path,actor,data);expect(r.status).toBe(201);return(await r.json()).data;};
+    const expired=await issue('teacher','/face/enroll/challenge',body);
+    await prisma.faceChallenge.update({where:{challenge_id:expired.challengeId},data:{expires_at:new Date(Date.now()-1)}});
+    expect((await req('/face/challenges/'+expired.challengeId+'/complete','teacher',packet())).status).toBe(409);
+    const rollback=await issue('teacher','/face/enroll/challenge',body);
+    await db.exec(`CREATE FUNCTION reject_face_audit() RETURNS trigger AS $$ BEGIN IF NEW.table_name = 'FaceChallenge' AND NEW.action = 'BIOMETRIC_ENROLLMENT' THEN RAISE EXCEPTION 'test face audit failure'; END IF; RETURN NEW; END; $$ LANGUAGE plpgsql; CREATE TRIGGER reject_face BEFORE INSERT ON "AuditLog" FOR EACH ROW EXECUTE FUNCTION reject_face_audit();`);
+    visionMock.mockResolvedValueOnce(observations(rollback.actions));
+    expect((await req('/face/challenges/'+rollback.challengeId+'/complete','teacher',packet())).status).toBe(500);
+    expect(await prisma.biometricEnrollment.count({where:{student_id:faceStudent.student_id}})).toBe(0);
+    await db.exec('DROP TRIGGER reject_face ON "AuditLog"; DROP FUNCTION reject_face_audit();');visionMock.mockReset();
+    const enroll=await issue('teacher','/face/enroll/challenge',body);
+    const evidence=packet();
+    expect((await req('/face/challenges/'+enroll.challengeId+'/complete','faceStudent',evidence)).status).toBe(404);
+    expect((await req('/face/challenges/'+enroll.challengeId+'/complete','teacher',{...evidence,faceMatch:true})).status).toBe(400);
+    visionMock.mockResolvedValueOnce(observations(enroll.actions));
+    expect((await req('/face/challenges/'+enroll.challengeId+'/complete','teacher',evidence)).status).toBe(200);
+    const saved=await prisma.biometricEnrollment.findUniqueOrThrow({where:{student_id:faceStudent.student_id}});
+    expect(saved.face_ciphertext).toMatch(/^v1\./);expect(saved.face_ciphertext).not.toContain('[1,0');
+    expect(JSON.stringify(await result(await req('/enrollment/biometric/'+faceStudent.student_id,'faceStudent')))).not.toContain(saved.face_ciphertext);
+    expect(await prisma.attendance.count({where:{student_id:faceStudent.student_id}})).toBe(0);
+    expect((await req('/face/challenges/'+enroll.challengeId+'/complete','teacher',evidence)).status).toBe(200);
+    expect(visionMock).toHaveBeenCalledTimes(1);
+    expect((await req('/face/verify/challenge','faceStudent',{sessionId})).status).toBe(409);
+    expect((await req('/face/policy','admin',{required:true,match:.55,continuity:.7},'PUT')).status).toBe(200);
+    expect((await assign(faceStudent.student_id,'ABCD1234')).status).toBe(200);advance();expect((await result(await tap('ABCD1234'))).direction).toBe('IN');
+    expect(await prisma.attendance.count({where:{student_id:faceStudent.student_id}})).toBe(0);
+    const join=await issue('faceStudent','/face/verify/challenge',{sessionId});
+    expect((await req('/face/challenges/'+join.challengeId+'/complete','faceStudent',evidence)).status).toBe(409);
+    const retryPacket=packet();visionMock.mockRejectedValueOnce(Object.assign(new Error('test temporary busy'),{status:503}));
+    expect((await req('/face/challenges/'+join.challengeId+'/complete','faceStudent',retryPacket)).status).toBe(503);
+    expect((await prisma.faceChallenge.findUniqueOrThrow({where:{challenge_id:join.challengeId}})).state).toBe('pending');
+    visionMock.mockResolvedValueOnce(observations(join.actions));
+    expect((await req('/face/challenges/'+join.challengeId+'/complete','faceStudent',retryPacket)).status).toBe(200);
+    expect(await prisma.attendance.count({where:{student_id:faceStudent.student_id}})).toBe(0);
+    expect((await req('/face/verify/challenge','faceStudent',{sessionId})).status).toBe(409);
+    await prisma.faceRequirement.update({where:{student_id_session_id:{student_id:faceStudent.student_id,session_id:sessionId}},data:{spot_due_at:new Date(Date.now()-1000)}});
+    const spot=await issue('faceStudent','/face/verify/challenge',{sessionId});visionMock.mockResolvedValueOnce(observations(spot.actions));
+    expect((await req('/face/challenges/'+spot.challengeId+'/complete','faceStudent',packet())).status).toBe(200);
+    expect(await prisma.attendance.count({where:{student_id:faceStudent.student_id,method:'RFID'}})).toBe(1);
+    const recovery=await issue('admin','/face/enroll/challenge',{...body,replace:true});
+    expect((await req('/enrollment/biometric/'+faceStudent.student_id+'/revoke','other',{},'PUT')).status).toBe(403);
+    expect((await req('/enrollment/biometric/'+faceStudent.student_id+'/revoke','admin',{},'PUT')).status).toBe(200);
+    expect((await prisma.biometricEnrollment.findUniqueOrThrow({where:{student_id:faceStudent.student_id}})).face_ciphertext).toBeNull();
+    expect((await req('/face/enroll/challenge','teacher',body)).status).toBe(409);
+    expect((await req('/face/challenges/'+recovery.challengeId+'/complete','admin',packet())).status).toBe(409);
+    expect((await req('/face/policy','admin',{required:false,match:.55,continuity:.7},'PUT')).status).toBe(200);
+    visionMock.mockReset();
   });
   it('deactivates leaving students and their cards/access while retaining historical records',async()=>{
     const before=await prisma.attendance.count({where:{student_id:student.student_id}}),visits=await prisma.rfidVisit.count({where:{student_id:student.student_id}});

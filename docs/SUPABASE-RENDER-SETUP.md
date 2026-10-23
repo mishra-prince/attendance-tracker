@@ -1,5 +1,7 @@
 # Supabase database and Render API
 
+**Threshold 1.4 update:** permanent face inference adds a Docker runtime and an additive migration to this same service. Use [the face rollout guide](PERMANENT-FACE-SETUP.md) for the current deployment. The earlier Node setup below records the RFID baseline.
+
 24 October 2026. Main app version 1.3.1.
 
 ## What is configured

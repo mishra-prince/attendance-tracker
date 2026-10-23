@@ -213,6 +213,8 @@ router.post('/students/:id/deactivate', admins, validateBody(z.object({ reason: 
       const student = await lockStudent(tx, req.params.id);
       await tx.user.update({ where: { user_id: student.user_id }, data: { is_active: false } });
       await tx.refreshSession.updateMany({ where: { user_id: student.user_id, revoked_at: null }, data: { revoked_at: new Date() } });
+      await tx.biometricEnrollment.updateMany({ where: { student_id: student.student_id }, data: { status: 'revoked', revoked_at: new Date(), face_ciphertext: null, face_model: null, face_captured_at: null, biometric_version: { increment: 1 } } });
+      await tx.faceChallenge.updateMany({ where: { student_id: student.student_id, state: { in: ['pending', 'processing'] } }, data: { state: 'cancelled' } });
       await tx.rfidCard.updateMany({ where: { student_id: student.student_id, is_active: true }, data: { is_active: false, revoked_at: new Date() } });
       await tx.auditLog.create({ data: { table_name: 'Student', record_id: student.student_id, action: 'UPDATE', changed_by: req.user!.userId, new_value: { is_active: false, cards_revoked: true, reason: req.body.reason } } });
     }); res.json({ success: true });

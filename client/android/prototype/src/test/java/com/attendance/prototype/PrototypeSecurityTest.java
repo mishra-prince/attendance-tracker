@@ -22,6 +22,19 @@ public class PrototypeSecurityTest {
             frame(c,1,yaw,pitch,action==SMILE ? .9f : null,action==SMILE ? .95f : null);
         }
     }
+    @Test public void permanentCaptureUsesItsOwnBoundedDeadline() {
+        FaceChallenge c=new FaceChallenge(0,90_000,SMILE,LOOK_UP);
+        assertEquals(90_000,c.remaining(0)); assertEquals(SMILE,c.currentAction());
+        c.comparisonFinished(89_999); assertNotEquals(FaceChallenge.Step.EXPIRED,c.step());
+        c.comparisonFinished(90_000); assertEquals(FaceChallenge.Step.EXPIRED,c.step());
+    }
+    @Test public void blinkEvidenceRequiresTwoClosedFrames() {
+        FaceChallenge c=new FaceChallenge(0,90_000,BLINK,SMILE); neutral(c);
+        frame(c,1,0,0,.1f,.1f); assertFalse(c.blinkClosureConfirmed());
+        frame(c,1,0,0,.9f,.1f); assertFalse(c.blinkClosureConfirmed());
+        frame(c,1,0,0,.1f,.1f); frame(c,1,0,0,.1f,.1f); assertTrue(c.blinkClosureConfirmed());
+    }
+    @Test(expected=IllegalArgumentException.class) public void unboundedCaptureDeadlineIsRejected() {new FaceChallenge(0,900_000,SMILE,BLINK);}
     @Test public void allThirtyDistinctActionOrdersCanComplete() {
         for(FaceChallenge.Action first:FaceChallenge.Action.values()) for(FaceChallenge.Action second:FaceChallenge.Action.values()) if(first!=second) {
             clock=0; FaceChallenge c=new FaceChallenge(0,first,second); neutral(c);

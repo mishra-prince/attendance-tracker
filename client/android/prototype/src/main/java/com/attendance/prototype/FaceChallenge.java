@@ -21,14 +21,20 @@ public final class FaceChallenge {
         return new FaceChallenge(now, pool.get(0), pool.get(1));
     }
     public FaceChallenge(long now, Action... actions) {
+        this(now, DemoPolicy.CHALLENGE_MS, actions);
+    }
+    public FaceChallenge(long now, long durationMs, Action... actions) {
         if (actions.length < 1 || actions.length > 3 || Arrays.asList(actions).contains(null)
             || new HashSet<>(Arrays.asList(actions)).size() != actions.length) throw new IllegalArgumentException("Invalid action sequence");
-        this.actions = actions.clone(); expires = now + DemoPolicy.CHALLENGE_MS;
+        if (durationMs < 10_000 || durationMs > 90_000) throw new IllegalArgumentException("Invalid challenge duration");
+        this.actions = actions.clone(); expires = now + durationMs;
     }
     public Step step() { return step; }
     public long remaining(long now) { return Math.max(0, expires - now); }
     public int checkpoint() { return checkpoint; }
     public Action[] sequence() { return actions.clone(); }
+    public Action currentAction() { return index < actions.length ? actions[index] : null; }
+    public boolean blinkClosureConfirmed() { return eyesClosed; }
     /** A known synchronous identity comparison pauses analysis, but never extends expiry. */
     public void comparisonFinished(long now) {
         if (now >= expires) step = Step.EXPIRED;

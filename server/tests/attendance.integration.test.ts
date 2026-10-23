@@ -34,7 +34,7 @@ beforeAll(async () => {
   vi.stubEnv('BLE_BEACON_SECRET', 'integration-beacon-secret-long-enough-123456789');
   vi.stubEnv('NODE_ENV', 'test');
   db = await PGlite.create();
-  for (const file of ['20260916052028_init', '20261020120000_bluetooth_and_sessions', '20261023030000_rfid_attendance']) {
+  for (const file of ['20260916052028_init', '20261020120000_bluetooth_and_sessions', '20261023030000_rfid_attendance','20261024030000_permanent_face']) {
     await db.exec(await readFile(new URL('../prisma/migrations/' + file + '/migration.sql', import.meta.url), 'utf8'));
   }
   socket = new PGLiteSocketServer({ db, host: '127.0.0.1', port: 5549 });

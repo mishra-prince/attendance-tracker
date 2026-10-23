@@ -1,6 +1,7 @@
 import app from './app';
 import cron from 'node-cron';
 import { prisma } from './utils/prisma';
+import { checkFaceWorker, closeFaceWorker } from './services/faceVision.service';
 import { audit } from './services/audit.service';
 
 const PORT = Number(process.env.PORT || 4100);
@@ -30,6 +31,7 @@ async function autoLockSessions() {
 
 cron.schedule('*/5 * * * *', autoLockSessions);
 
-app.listen(PORT, () => {
-  console.log(`✅ Attendance Tracker API on :${PORT}`);
-});
+checkFaceWorker().then(() => {
+  app.listen(PORT, () => { console.log(`Attendance Tracker API on :${PORT}`); });
+}).catch(() => { console.error('Face verifier startup failed; refusing an unhealthy deployment'); process.exit(1); });
+process.on('SIGTERM', () => { closeFaceWorker(); process.exit(0); });

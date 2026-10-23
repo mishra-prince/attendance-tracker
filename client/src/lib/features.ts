@@ -130,7 +130,7 @@ export type EnrollmentMethod =
 
 export interface EnrollmentInfo {
   enrollment_trust_state: EnrollmentTrustState;
-  enrollment: { status: string; method: EnrollmentMethod; biometric_version: number } | null;
+  enrollment: { status: string; method: EnrollmentMethod; biometric_version: number; hasFace: boolean; faceCapturedAt: string | null } | null;
 }
 
 export async function getEnrollment(studentId: string): Promise<EnrollmentInfo> {

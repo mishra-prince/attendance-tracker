@@ -43,3 +43,5 @@ server/prisma/*.db-journal
 **/.gradle/
 prototype/private/
 **/hardware-backups/
+server/vision/models/
+**/__pycache__/

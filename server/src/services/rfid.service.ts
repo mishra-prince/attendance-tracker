@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../utils/prisma';
 import { httpError } from '../middleware/error.middleware';
 import { campusDate, sessionBounds } from './bleEvidence.service';
+import { ensureFaceRequirement, faceAllowsCredit } from './faceAttendance.service';
 import { staffSessionScope } from './roster.service';
 import type { AccessPayload } from '../utils/jwt';
 
@@ -127,8 +128,9 @@ export async function recordTap(input: { eventId: string; uid: string; sentAt: n
     event.direction = exiting ? 'OUT' : 'IN';
     if (exiting && open) await tx.rfidVisit.update({ where: { visit_id: open.visit_id }, data: { exit_at: now, exit_event_id: input.eventId } });
     else await tx.rfidVisit.create({ data: { reader_id: reader.reader_id, student_id: student.student_id, session_id: session.session_id, entry_at: now, entry_event_id: input.eventId } });
-    const created = await tx.attendance.createMany({ data: [{ session_id: session.session_id, student_id: student.student_id, status: 'present',
-      method: 'RFID', marked_by: reader.created_by, device_id: reader.reader_id, remarks: 'Registered RFID card tap; card identity only' }], skipDuplicates: true });
+    await ensureFaceRequirement(tx, student.student_id, session);
+    const created = await faceAllowsCredit(tx, student.student_id, session.session_id) ? await tx.attendance.createMany({ data: [{ session_id: session.session_id, student_id: student.student_id, status: 'present',
+      method: 'RFID', marked_by: reader.created_by, device_id: reader.reader_id, remarks: 'Registered RFID card tap; card identity only' }], skipDuplicates: true }) : { count: 0 };
     if (created.count) await tx.auditLog.create({ data: { table_name: 'Attendance', record_id: session.session_id, action: 'CREATE', changed_by: reader.created_by,
       new_value: { student_id: student.student_id, method: 'RFID', reader_id: reader.reader_id } } });
     return finish('RECORDED');
@@ -145,17 +147,20 @@ export async function dailyRfid(user: AccessPayload, date: string) {
   const items = [...sessions.map((s) => ({ ...s, key: s.session_id, session_id: s.session_id as string | null })), ...slots.filter((t) => !sessions.some((s) => s.timetable_id === t.timetable_id)).map((t) => ({ ...t, key: t.timetable_id, session_id: null, date: day, status: 'scheduled' }))];
   const classes = [];
   for (const item of items) {
-    const [students, attendance, visits] = await Promise.all([
+    const [students, attendance, visits, faces] = await Promise.all([
       prisma.student.findMany({ where: { section_id: item.section_id, ...(user.role === 'STUDENT' ? { student_id: user.studentId } : { user: { is_active: true } }),
         enrollments: { some: { subject_id: item.subject_id, section_id: item.section_id, status: 'active' } } }, select: { student_id: true, name: true, roll_no: true }, orderBy: { roll_no: 'asc' } }),
       item.session_id ? prisma.attendance.findMany({ where: { session_id: item.session_id, ...(user.role === 'STUDENT' ? { student_id: user.studentId } : {}) }, include: { student: { select: { student_id: true, name: true, roll_no: true } } } }) : [],
       item.session_id ? prisma.rfidVisit.findMany({ where: { session_id: item.session_id, ...(user.role === 'STUDENT' ? { student_id: user.studentId } : {}) }, orderBy: { entry_at: 'asc' } }) : [],
+      item.session_id ? prisma.faceRequirement.findMany({ where: { session_id: item.session_id, ...(user.role === 'STUDENT' ? { student_id: user.studentId } : {}) } }) : [],
     ]);
     const all = new Map([...students, ...attendance.map((a) => a.student)].map((s) => [s.student_id, s]));
     const roster = [...all.values()].map((s) => {
       const intervals = visits.filter((v) => v.student_id === s.student_id), record = attendance.find((a) => a.student_id === s.student_id);
       const last = intervals.at(-1), bounds = sessionBounds(item, zone);
+      const face = faces.find((f) => f.student_id === s.student_id);
       return { ...s, status: record?.status || 'unmarked', method: record?.method || null,
+        face: face ? { required: face.required, join_passed_at: face.join_passed_at, spot_passed_at: face.spot_passed_at, spot_due_at: user.role === 'STUDENT' && new Date() < face.spot_due_at ? null : face.spot_due_at, deadline_at: face.deadline_at } : null,
         first_in: intervals[0]?.entry_at || null, last_out: [...intervals].reverse().find((v) => v.exit_at)?.exit_at || null,
         inside: !!last && !last.exit_at && new Date() <= bounds.end, missing_exit: !!last && !last.exit_at && new Date() > bounds.end,
         visits: intervals.map((v) => ({ entry_at: v.entry_at, exit_at: v.exit_at })) };

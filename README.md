@@ -2,6 +2,12 @@
 
 A college attendance app for Android and the web. Supports classroom RFID readers, phone check-in and teacher review of session attendance.
 
+## Threshold 1.4.0 — permanent supervised face verification
+
+[Download Threshold 1.4.0 APK](https://github.com/mishra-prince/attendance-tracker/raw/refs/heads/master/downloads/threshold-1.4.0-test.apk) · [Enrollment and rollout guide](docs/PERMANENT-FACE-SETUP.md) · [Build / deployment record](downloads/FACE-1.4.0-BUILD-REPORT.md)
+
+The original app now captures an approved institutional face, recomputes face matching and two random actions on the server, and shows entry/random face status alongside RFID visits. Templates are encrypted; demo identities never become approved student references. Mandatory face checks default off until enrollment and phone calibration are complete. The guide records server rollout requirements and remaining physical checks. The matching/action flow provides basic active liveness, not validated spoof resistance.
+
 ## Threshold 1.3.1 — main RFID attendance
 
 [Download Threshold 1.3.1 APK](https://github.com/mishra-prince/attendance-tracker/raw/refs/heads/master/downloads/threshold-1.3.1-test.apk) · [ESP32-S3 + RC522 wiring and setup](hardware/RFID-SETUP.md) · [Supabase + free Render setup](docs/SUPABASE-RENDER-SETUP.md) · [Build report](downloads/RFID-1.3.1-BUILD-REPORT.md)
@@ -24,7 +30,7 @@ The user-run S3 write passed its immediate hash check but the later whole-image 
 
 The [downloads folder](downloads/README.md) contains the test APKs, Room Lab pilot kit, compiled ESP32-C3/S3 firmware, setup guides and attendance research report.
 
-- [Download the current Threshold 1.3.1 Android test APK](https://github.com/mishra-prince/attendance-tracker/raw/refs/heads/master/downloads/threshold-1.3.1-test.apk) — main RFID features require the deployed API; embedded face demo works offline.
+- [Download Threshold 1.3.1 (previous RFID release)](https://github.com/mishra-prince/attendance-tracker/raw/refs/heads/master/downloads/threshold-1.3.1-test.apk) — main RFID features require the deployed API; embedded face demo works offline.
 - [Previous Threshold 1.1.0 Android test APK](https://github.com/mishra-prince/attendance-tracker/raw/refs/heads/master/downloads/threshold-1.1.0-test.apk) — retained historical build.
 - [Download the offline Room Lab Android test APK](https://github.com/mishra-prince/attendance-tracker/raw/refs/heads/master/downloads/threshold-room-lab-0.1.0-test.apk) — room-calibration measurements only.
 - [Room Lab setup guide](downloads/ROOM-LAB-QUICKSTART.md) and [research and pilot plan](downloads/ATTENDANCE-RESEARCH-AND-PILOT.md).

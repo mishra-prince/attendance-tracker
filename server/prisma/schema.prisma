@@ -182,6 +182,7 @@ model User {
   refreshSessions RefreshSession[]
   rfidReaders RfidReader[]
   rfidCards RfidCard[]
+  faceChallenges FaceChallenge[]
 }
 
 model RefreshSession {
@@ -333,6 +334,8 @@ model Student {
   rfidCards RfidCard[]
   rfidEvents RfidEvent[]
   rfidVisits RfidVisit[]
+  faceChallenges FaceChallenge[]
+  faceRequirements FaceRequirement[]
 }
 
 model Teacher {
@@ -420,6 +423,8 @@ model ClassSession {
   qrSessions AttendanceQRSession[]
   rfidEvents RfidEvent[]
   rfidVisits RfidVisit[]
+  faceChallenges FaceChallenge[]
+  faceRequirements FaceRequirement[]
 
   @@index([section_id, date])
   @@index([teacher_id, date])
@@ -598,6 +603,10 @@ model BiometricEnrollment {
   enrollment_method EnrollmentMethod
   enrolled_by       String   // User (staff) who verified institutional identity
   device_id         String?
+  face_ciphertext   String?
+  face_model        String?
+  face_captured_at  DateTime?
+  consent_recorded_at DateTime?
   biometric_version Int      @default(1)
   status            BiometricEnrollmentStatus @default(active)
   enrolled_at       DateTime @default(now())
@@ -696,4 +705,47 @@ model RfidVisit {
   session ClassSession @relation(fields: [session_id], references: [session_id])
   @@index([session_id, student_id])
   @@index([student_id, exit_at])
+}
+
+// Raw camera frames are NEVER persisted. Pending challenges contain only server-selected actions.
+model FaceChallenge {
+  challenge_id String @id @default(uuid())
+  student_id String
+  actor_id String
+  actor_session_id String
+  class_session_id String?
+  purpose String
+  phase String?
+  enrollment_version Int
+  actions Json
+  policy Json
+  enrollment_method EnrollmentMethod?
+  state String @default("pending")
+  evidence_hash String? @unique
+  failure_reason String?
+  created_at DateTime @default(now())
+  expires_at DateTime
+  completed_at DateTime?
+  student Student @relation(fields: [student_id], references: [student_id])
+  actor User @relation(fields: [actor_id], references: [user_id])
+  session ClassSession? @relation(fields: [class_session_id], references: [session_id])
+  @@index([student_id, created_at])
+  @@index([class_session_id, state])
+}
+
+// Snapshot at first RFID entry: enabling policy never changes an already-started requirement.
+model FaceRequirement {
+  requirement_id String @id @default(uuid())
+  student_id String
+  session_id String
+  required Boolean @default(false)
+  spot_due_at DateTime
+  deadline_at DateTime
+  join_passed_at DateTime?
+  spot_passed_at DateTime?
+  created_at DateTime @default(now())
+  student Student @relation(fields: [student_id], references: [student_id])
+  session ClassSession @relation(fields: [session_id], references: [session_id])
+  @@unique([student_id, session_id])
+  @@index([session_id])
 }

@@ -1,163 +1,60 @@
 import { useEffect, useState } from 'react';
-import { ShieldCheck, ScanFace, CheckCircle2, Loader2, IdCard } from 'lucide-react';
-import { errMsg } from '../../lib/api';
-import {
-  listStudents, getEnrollment, superviseEnroll, reEnroll,
-  type EnrollmentMethod, type EnrollmentTrustState,
-} from '../../lib/features';
+import { ShieldCheck, ScanFace, Loader2, Search } from 'lucide-react';
+import { api, errMsg } from '../../lib/api';
+import { listStudents, getEnrollment, type EnrollmentMethod, type EnrollmentInfo } from '../../lib/features';
+import { enrollFace } from '../../lib/face';
+import { hasNativeVerification } from '../../lib/verification';
+import { useAuth } from '../../store/auth';
 import { Page } from '../../components/motion';
-import { RowSkeleton } from '../../components/skeletons';
-import ClassroomDemoButton from '../../components/ClassroomDemoButton';
+import FacePolicy from '../../components/FacePolicy';
 
-// This is the ROOT-OF-TRUST station. Staff verify institutional identity in person,
-// then record the staff observation. This page does not run camera capture or face inference.
-
-const METHODS: { value: EnrollmentMethod; label: string }[] = [
-  { value: 'SUPERVISED_STAFF', label: 'Supervised by staff' },
-  { value: 'INSTITUTIONAL_ID_CARD', label: 'Institutional ID card' },
-  { value: 'REGISTRATION_RECORD', label: 'College registration record' },
-  { value: 'TRUSTED_IDENTITY_SYSTEM', label: 'Trusted identity system' },
-  { value: 'BIOMETRIC_ENROLLMENT_STATION', label: 'Biometric enrollment station' },
-];
-
-const STATE_BADGE: Record<EnrollmentTrustState, string> = {
-  UNENROLLED: 'badge-neutral',
-  PENDING_SUPERVISED_ENROLLMENT: 'badge-late',
-  ACTIVE: 'badge-present',
-  REVOKED: 'badge-absent',
-  REQUIRES_REENROLLMENT: 'badge-late',
-};
-
-type Row = { student_id: string; name: string; roll_no: string; enrollment_trust_state?: EnrollmentTrustState };
-
+type Row = { student_id: string; name: string; roll_no: string };
 export default function SupervisedEnrollment() {
-  const [rows, setRows] = useState<Row[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState('');
-  const [sel, setSel] = useState<Row | null>(null);
-  const [method, setMethod] = useState<EnrollmentMethod>('SUPERVISED_STAFF');
-  const [idConfirmed, setIdConfirmed] = useState(false);
-  const [liveness, setLiveness] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState('');
-
-  function load() {
-    setLoading(true);
-    listStudents()
-      .then((r) => setRows(r))
-      .catch((e) => setErr(errMsg(e)))
-      .finally(() => setLoading(false));
-  }
-  useEffect(load, []);
-
+  const user = useAuth((s) => s.user)!;
+  const canRecover = ['HOD','ADMIN','SUPER_ADMIN'].includes(user.role);
+  const [rows,setRows] = useState<Row[]>([]), [selected,setSelected] = useState<Row | null>(null);
+  const [info,setInfo] = useState<EnrollmentInfo | null>(null), [query,setQuery] = useState('');
+  const [loading,setLoading] = useState(true), [busy,setBusy] = useState(false), [error,setError] = useState(''), [message,setMessage] = useState('');
+  const [confirmed,setConfirmed] = useState(false), [consent,setConsent] = useState(false), [replace,setReplace] = useState(false);
+  const [method,setMethod] = useState<EnrollmentMethod>('INSTITUTIONAL_ID_CARD');
+  useEffect(() => { let live=true; listStudents().then((r) => { if(live)setRows(r); }).catch((e) => { if(live)setError(errMsg(e)); }).finally(() => { if(live)setLoading(false); }); return () => {live=false;}; },[]);
   async function open(row: Row) {
-    setSel(row); setIdConfirmed(false); setLiveness(false); setMsg('');
-    try {
-      const info = await getEnrollment(row.student_id);
-      setSel({ ...row, enrollment_trust_state: info.enrollment_trust_state });
-    } catch { /* keep row state */ }
+    setSelected(row); setInfo(null); setConfirmed(false); setConsent(false); setReplace(false); setMessage(''); setError(''); setBusy(true);
+    try { setInfo(await getEnrollment(row.student_id)); } catch(e) {setError(errMsg(e));} finally {setBusy(false);}
   }
-
-  async function submit() {
-    if (!sel) return;
-    setBusy(true); setMsg('');
+  async function capture() {
+    if(!selected || !confirmed || !consent) return;
+    setBusy(true);setError('');setMessage('');
     try {
-      const isReenroll = sel.enrollment_trust_state === 'ACTIVE' || sel.enrollment_trust_state === 'REVOKED' || sel.enrollment_trust_state === 'REQUIRES_REENROLLMENT';
-      if (isReenroll) await reEnroll(sel.student_id, method, liveness);
-      else await superviseEnroll(sel.student_id, method, liveness);
-      setMsg('✓ Supervised enrollment metadata recorded — no face template was captured by this page');
-      setSel(null);
-      load();
-    } catch (e) { setMsg('⚠ ' + errMsg(e)); }
-    finally { setBusy(false); }
+      await enrollFace({studentId:selected.student_id,replace,enrollmentMethod:method,idConfirmed:true,consentRecorded:true},setMessage);
+      setInfo(await getEnrollment(selected.student_id)); setMessage('Approved face reference saved securely. The student can now verify in their own account during class.');
+      setConfirmed(false);setConsent(false);setReplace(false);
+    } catch(e) {setError(errMsg(e));setMessage('');} finally {setBusy(false);}
   }
-
-  return (
-    <Page className="flex flex-col gap-5">
-      <div className="flex items-center gap-2">
-        <ShieldCheck size={20} className="text-signal" />
-        <div>
-          <div className="text-bone text-lg font-semibold">Supervised Enrollment</div>
-          <div className="text-ash text-sm mt-0.5">Record an in-person staff observation. Threshold’s classroom demo includes local face matching; its templates do not update this institutional enrollment.</div>
-        </div>
-      </div>
-
-      <ClassroomDemoButton />
-      {msg && <div className="glass-medium rounded-2xl p-4 text-sm text-emerald-300">{msg}</div>}
-      {err && <div role="alert" className="text-signal text-sm">{err}</div>}
-      {loading && <RowSkeleton rows={5} />}
-
-      {!sel && !loading && (
-        <div className="flex flex-col gap-2">
-          {rows.map((r) => (
-            <button key={r.student_id} onClick={() => open(r)}
-              className="glass-medium rounded-xl px-4 py-3 flex items-center justify-between text-left">
-              <div>
-                <div className="font-medium text-bone">{r.name}</div>
-                <div className="text-muted text-xs">{r.roll_no}</div>
-              </div>
-              {r.enrollment_trust_state && (
-                <span className={`badge ${STATE_BADGE[r.enrollment_trust_state]}`}>
-                  {r.enrollment_trust_state.replace(/_/g, ' ').toLowerCase()}
-                </span>
-              )}
-            </button>
-          ))}
-          {!rows.length && <div className="text-ash">No students found.</div>}
-        </div>
-      )}
-
-      {sel && (
-        <div className="glass-medium rounded-2xl p-5 flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="font-medium text-bone">{sel.name}</div>
-              <div className="text-muted text-xs">{sel.roll_no}</div>
-            </div>
-            {sel.enrollment_trust_state && (
-              <span className={`badge ${STATE_BADGE[sel.enrollment_trust_state]}`}>
-                {sel.enrollment_trust_state.replace(/_/g, ' ').toLowerCase()}
-              </span>
-            )}
-          </div>
-
-          {(sel.enrollment_trust_state === 'ACTIVE') && (
-            <div className="text-amber-300 text-xs">Re-enrollment will revoke the existing template and issue a new version.</div>
-          )}
-
-          <label className="text-ash text-xs">Identity anchor
-            <select className="input mt-1" value={method} onChange={(e) => setMethod(e.target.value as EnrollmentMethod)}>
-              {METHODS.map((m) => <option key={m.value} value={m.value} className="bg-carbon">{m.label}</option>)}
-            </select>
-          </label>
-
-          <button onClick={() => setIdConfirmed((v) => !v)}
-            className={`glass-card rounded-xl p-3 flex items-center gap-3 text-left ${idConfirmed ? 'ring-1 ring-emerald-400/40' : ''}`}>
-            <IdCard size={18} className={idConfirmed ? 'text-emerald-400' : 'text-ash'} />
-            <div className="flex-1 text-sm">{idConfirmed ? 'Institutional identity verified' : 'Confirm institutional identity'}</div>
-            {idConfirmed && <CheckCircle2 size={16} className="text-emerald-400" />}
-          </button>
-
-          <button onClick={() => setLiveness((v) => !v)}
-            className={`glass-card rounded-xl p-3 flex items-center gap-3 text-left ${liveness ? 'ring-1 ring-emerald-400/40' : ''}`}>
-            <ScanFace size={18} className={liveness ? 'text-emerald-400' : 'text-ash'} />
-            <div className="flex-1 text-sm">{liveness ? 'Staff confirms an in-person live observation' : 'Confirm staff observed the student live in person'}</div>
-            {liveness && <CheckCircle2 size={16} className="text-emerald-400" />}
-          </button>
-
-          <div className="flex gap-2">
-            <button className="btn-primary flex-1 flex items-center justify-center gap-2"
-              disabled={!idConfirmed || !liveness || busy} onClick={submit}>
-              {busy ? <Loader2 size={15} className="animate-spin" /> : <ShieldCheck size={15} />}
-              {sel.enrollment_trust_state === 'ACTIVE' ? 'Re-enroll' : 'Enroll identity'}
-            </button>
-            <button className="btn-ghost" onClick={() => setSel(null)}>Cancel</button>
-          </div>
-          <div className="text-muted text-[11px]">
-            Both confirmations are manual staff observations. This web page stores enrollment metadata; it does not capture, match or test a face. Prototype templates are local and are not linked to this record.
-          </div>
-        </div>
-      )}
-    </Page>
-  );
+  const needsRecovery = !!info && (!!info.enrollment?.hasFace || info.enrollment?.status === 'revoked' || info.enrollment_trust_state === 'REQUIRES_REENROLLMENT');
+  return <Page className="flex flex-col gap-5">
+    <div className="flex gap-3"><ShieldCheck className="text-signal shrink-0 mt-1" size={22} /><div><h1 className="text-xl font-semibold">Approved face enrollment</h1><p className="text-sm text-ash mt-1">Verify the student’s college identity in person, then capture their face with two random actions. Demo enrollments are never used here.</p></div></div>
+    {['ADMIN','SUPER_ADMIN'].includes(user.role) && <FacePolicy />}
+    {error && <p role="alert" className="text-sm text-signal">{error}</p>}
+    {message && <p role="status" className="glass-medium p-4 rounded-xl text-sm text-emerald-300">{message}</p>}
+    {!hasNativeVerification && <p className="text-sm text-amber-300">Open this page in the updated Threshold Android app for supervised camera capture. You can view status and manage policy here.</p>}
+    {!selected && <><label className="flex gap-2 items-center"><Search size={17} /><input className="input" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find student by name or roll number" aria-label="Find student" /></label>{loading && <p className="text-ash">Loading your class rosters…</p>}{rows.filter((r) => `${r.name} ${r.roll_no}`.toLowerCase().includes(query.toLowerCase())).map((r) => <button key={r.student_id} className="glass-medium rounded-xl px-4 py-3 text-left" onClick={() => void open(r)}><span className="block font-medium">{r.name}</span><span className="text-xs text-ash">{r.roll_no}</span></button>)}{!loading && !rows.length && <p className="text-ash">No students in your assigned scope.</p>}</>}
+    {selected && <section className="glass-medium rounded-2xl p-5 flex flex-col gap-4">
+      <div><h2 className="font-semibold">{selected.name}</h2><p className="text-xs text-ash">{selected.roll_no}</p></div>
+      {busy && <p role="status" className="text-sm text-ash flex items-center gap-2"><Loader2 size={15} className="animate-spin" />{message || 'Loading…'}</p>}
+      {info && <>
+        <p className="text-sm">{info.enrollment?.hasFace ? `Approved face reference · version ${info.enrollment.biometric_version}` : 'No usable approved face reference. Earlier staff confirmations do not contain a captured face.'}{info.enrollment?.faceCapturedAt && <span className="block text-xs text-ash mt-1">Captured {new Date(info.enrollment.faceCapturedAt).toLocaleString()}</span>}</p>
+        {needsRecovery && (canRecover ? <label className="flex gap-3 text-sm"><input type="checkbox" checked={replace} disabled={busy} onChange={(e) => setReplace(e.target.checked)} />Supervised identity recovery: replace the current reference after verifying college records again.</label> : <p className="text-sm text-ash">An HOD or administrator must authorize replacement of this identity.</p>)}
+        {(!needsRecovery || replace) && <>
+          <label className="text-sm">Institutional identity record<select className="input mt-1" value={method} disabled={busy} onChange={(e) => setMethod(e.target.value as EnrollmentMethod)}><option value="INSTITUTIONAL_ID_CARD">College ID card</option><option value="REGISTRATION_RECORD">College registration record</option><option value="SUPERVISED_STAFF">Approved staff verification</option></select></label>
+          <label className="flex gap-3 text-sm"><input type="checkbox" checked={confirmed} disabled={busy} onChange={(e) => setConfirmed(e.target.checked)} />I checked this person against the student’s institutional identity record in person.</label>
+          <label className="flex gap-3 text-sm"><input type="checkbox" checked={consent} disabled={busy} onChange={(e) => setConsent(e.target.checked)} />The student agreed to face enrollment after being told its purpose, storage and review options. An alternative is available if they decline.</label>
+          <p className="text-xs text-ash">The server extracts an encrypted face template and checks the random actions. Raw images are processed in memory and are not retained. Revocation removes the stored template. Matching and basic active liveness can make mistakes; unresolved checks need staff review.</p>
+          <button className="btn-primary flex items-center justify-center gap-2" disabled={busy || !confirmed || !consent || !hasNativeVerification} onClick={() => void capture()}><ScanFace size={17} />{replace ? 'Capture replacement face' : 'Capture approved face'}</button>
+        </>}
+        {canRecover && info.enrollment?.hasFace && <button className="btn-ghost text-signal" disabled={busy} onClick={async () => {setBusy(true);setError('');try {await api.put(`/enrollment/biometric/${selected.student_id}/revoke`);setInfo(await getEnrollment(selected.student_id));setMessage('Face reference removed. A new supervised enrollment is required.');}catch(e){setError(errMsg(e));}finally{setBusy(false);}}}>Revoke and remove face reference</button>}
+      </>}
+      <button className="btn-ghost" disabled={busy} onClick={() => {setSelected(null);setInfo(null);setError('');}}>Back to students</button>
+    </section>}
+  </Page>;
 }

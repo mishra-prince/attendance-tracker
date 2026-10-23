@@ -15,6 +15,9 @@
     <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
     <uses-feature android:name="android.hardware.location" android:required="false" />
     <application>
+        <activity android:name="com.attendance.prototype.InstitutionFaceActivity"
+            android:theme="@style/PrototypeTheme" android:screenOrientation="portrait"
+            android:exported="false" />
         <activity android:name="com.attendance.prototype.PrototypeActivity"
             android:theme="@style/PrototypeTheme" android:screenOrientation="portrait"
             android:exported="false" />
