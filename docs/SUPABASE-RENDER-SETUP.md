@@ -1,6 +1,6 @@
 # Supabase database and Render API
 
-24 October 2026. Main app version 1.3.0.
+24 October 2026. Main app version 1.3.1.
 
 ## What is configured
 
@@ -20,7 +20,7 @@ The repository's `render.yaml` defines **one free Node web service**, using the 
 4. The Blueprint generates four distinct secrets: `JWT_SECRET`, `JWT_REFRESH_SECRET`, `BLE_BEACON_SECRET`, `RFID_CARD_HASH_SECRET`. Save them privately. Keep the card hash secret stable across redeploys or card registration cannot be matched. Keep existing JWT/BLE secrets if migrating a previously running server and continuity is required; a new JWT secret requires signing in again.
 5. Keep `NODE_ENV=production`, `ATTENDANCE_TIMEZONE=Asia/Kolkata`, `TRUST_PROXY_HOPS=1`, `ALLOW_DEMO_SEED=false`. APK origins are already listed. Add exact web origins only if serving a browser frontend.
 6. Deploy. `/ready` must return `{"success":true,"data":{"status":"ready"}}`; unlike `/health`, this checks the RFID database table is reachable. Existing institution login and reader provisioning must also be tested. No deployment success is assumed from source publication alone.
-7. Add custom domain **att.threshold.dpdns.org** to the service and follow Render's exact DNS instructions at your DNS provider. Wait for its TLS certificate. The main APK uses this owner-confirmed HTTPS origin. Do not put the Supabase project URL in place of the Express API. If the custom domain cannot be configured, a same-package APK update with your verified Render origin is needed.
+7. The owner chose the assigned HTTPS API origin **https://threshold-api-j5wk.onrender.com** directly. Threshold 1.3.1 and the RFID provisioning tool use it, so no custom DNS is required. The older 1.3.0 APK still targets the unresolved custom domain. Do not substitute the Supabase project URL for the Express API. For reproducible APK builds, copy client/.env.production.example to client/.env.production before android:sync.
 
 Automatic deployments are off in this Blueprint so unreviewed pushes do not immediately change the running attendance API. Trigger a deploy after reviewing/tested updates. Never run `prisma migrate reset`, `db push --force-reset` or the seed script against this database.
 
@@ -29,3 +29,7 @@ Automatic deployments are off in this Blueprint so unreviewed pushes do not imme
 Use `npm ci`, `npx prisma generate`, `npx prisma migrate deploy`, four distinct secrets from `server/.env.example`, and the usual private first-admin provisioning process. Do not copy this project's schema-history repair SQL or demo accounts into a different database. Use institution-issued credentials; no universal APK ID/password is provided.
 
 After each future Supabase schema change, apply `server/deploy/supabase-hardening.sql` for listed app tables and inspect grants/RLS/advisors. New tables must receive the same explicit server-only review. If introducing direct Supabase Auth/Data API access later, design role- and ownership-based policies first; the app's JWT is not a Supabase Auth token.
+
+## Initial Render connection diagnosis
+
+The free service threshold-api (srv-dbdrqrrncjis73d9n3pg) built commit 3267c5b successfully. Its initial launch failed with Prisma P1001 because DATABASE_URL used the IPv6 direct host db.osdousdloxpcxdpszqtc.supabase.co. The correct IPv4 Session-pooler host is aws-0-ap-south-1.pooler.supabase.com, port 5432, username postgres.osdousdloxpcxdpszqtc. The owner must edit that private environment value and redeploy. Never copy the password into this document. Readiness remains pending until /ready returns HTTP 200.

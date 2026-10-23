@@ -1,6 +1,6 @@
-# Threshold RFID 1.3.0
+# Threshold RFID 1.3.1
 
-This is a main attendance feature in `com.attendance.tracker`. It uses the existing staff/student logins, class sessions, attendance percentages and audit trail. Install the [same-package APK](../downloads/threshold-1.3.0-test.apk). This development APK updates our previous signed test builds in place. Do not uninstall to update, since that removes local demo enrollment.
+This is a main attendance feature in `com.attendance.tracker`. It uses the existing staff/student logins, class sessions, attendance percentages and audit trail. Install the [same-package APK](../downloads/threshold-1.3.1-test.apk). This development APK updates our previous signed test builds in place. Do not uninstall to update, since that removes local demo enrollment.
 
 ## RC522 wiring to ESP32-S3
 
@@ -54,7 +54,7 @@ Then provision credentials through hidden prompts:
 /bin/zsh hardware/PROVISION-RFID-MAC.command --status
 ```
 
-Use 2.4 GHz Wi-Fi, the app's reader ID/key and the actual HTTPS API origin (default `https://att.threshold.dpdns.org`). The URL must have no `/api` suffix. The tool keeps keys out of shell history and logs. The board saves them in ordinary NVS; this code does not provide encrypted storage against physical flash extraction. Rotate the reader key in the app after a lost/compromised board and provision again.
+Use 2.4 GHz Wi-Fi, the app's reader ID/key and the actual HTTPS API origin (default `https://threshold-api-j5wk.onrender.com`). The URL must have no `/api` suffix. The tool keeps keys out of shell history and logs. The board saves them in ordinary NVS; this code does not provide encrypted storage against physical flash extraction. Rotate the reader key in the app after a lost/compromised board and provision again.
 
 On another Mac, install Python, `esptool==4.12` and pyserial in your own virtual environment, and set `THRESHOLD_ESP_PYTHON` to its Python. The shared `prototype/upload_s3.py` script accepts explicit `--firmware`, `--port`, `--python`, `--backup-dir`, `--purpose rfid` and `--flash`/`--verify-only` arguments. Backup directory must be outside the repository.
 

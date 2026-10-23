@@ -29,7 +29,7 @@ def main():
         reader_id = input('Reader ID: ').strip()
         uuid.UUID(reader_id)
         key = getpass.getpass('Reader key (hidden): ').strip()
-        server = input('HTTPS API origin [https://att.threshold.dpdns.org]: ').strip().rstrip('/') or 'https://att.threshold.dpdns.org'
+        server = input('HTTPS API origin [https://threshold-api-j5wk.onrender.com]: ').strip().rstrip('/') or 'https://threshold-api-j5wk.onrender.com'
         url = urlsplit(server)
         if not ssid or len(ssid.encode()) > 32 or len(password.encode()) > 63 or not re.fullmatch(r'[A-Za-z0-9_-]{40,128}', key):
             raise ValueError('Invalid Wi-Fi or reader credential')

@@ -21,5 +21,5 @@ if [[ -z "$serial_port" ]]; then
   serial_port="$ports[1]"
 fi
 "$python_bin" "$repo_dir/prototype/upload_s3.py" --port "$serial_port" --python "$python_bin" \
- --firmware "$repo_dir/hardware/firmware/threshold-rfid-s3-1.3.0.merged.bin" \
+ --firmware "$repo_dir/hardware/firmware/threshold-rfid-s3-1.3.1.merged.bin" \
  --backup-dir "$task_dir/work/hardware/backups" --purpose rfid "$upload_mode"

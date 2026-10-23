@@ -31,7 +31,7 @@ void loadConfiguration() {
   preferences.begin("threshold-rfid", false);
   wifiName = preferences.getString("ssid", ""); wifiPassword = preferences.getString("wifi-password", "");
   readerId = preferences.getString("reader-id", ""); readerKey = preferences.getString("reader-key", "");
-  serverUrl = preferences.getString("server", "https://att.threshold.dpdns.org");
+  serverUrl = preferences.getString("server", "https://threshold-api-j5wk.onrender.com");
 }
 void handleCommand(const String &line) {
   JsonDocument doc;
@@ -115,7 +115,7 @@ void setup() {
   Serial.begin(115200); delay(200); loadConfiguration();
   SPI.begin(RFID_SCK, RFID_MISO, RFID_MOSI, RFID_SS); rfid.PCD_Init(); delay(50);
   byte version = rfid.PCD_ReadRegister(MFRC522::VersionReg); readerHealthy = version != 0 && version != 0xff;
-  Serial.println("Threshold RFID 1.3.0 — main attendance reader");
+  Serial.println("Threshold RFID 1.3.1 — main attendance reader");
   Serial.println("RC522 wiring: 3.3V, GND, SCK GPIO12, MISO GPIO13, MOSI GPIO11, SDA/SS GPIO10, RST GPIO9; IRQ unused.");
   Serial.println(readerHealthy ? "RC522 responded. Physical card reception still requires a test." : "RC522 not detected. Check 3.3V supply and SPI wiring.");
   WiFi.mode(WIFI_STA); WiFi.setAutoReconnect(true); if (configured()) WiFi.begin(wifiName.c_str(), wifiPassword.c_str());
