@@ -5,7 +5,7 @@ COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
 RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
  && ln -s /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
  && apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates openssl libgl1 libglib2.0-0 libportaudio2 \
+ && apt-get install -y --no-install-recommends ca-certificates openssl libgl1 libegl1 libgles2 libglib2.0-0 libportaudio2 \
  && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production FACE_VISION_ENABLED=true FACE_PYTHON=/opt/vision/bin/python \
     OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MPLCONFIGDIR=/tmp/threshold-matplotlib \
