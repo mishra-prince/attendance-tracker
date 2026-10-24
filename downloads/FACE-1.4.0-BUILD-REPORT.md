@@ -22,7 +22,13 @@
 
 ## Deployment status
 
-The additive face migration and Docker rollout are prepared for the **existing** Render service and Supabase database. At this build checkpoint, the prior RFID API remains live; production face readiness is **not yet verified**. The rollout result will be recorded here after deployment. Existing private credentials, public URL and student data are preserved; no seed/reset is part of this rollout.
+**Live at 23:19:05 IST on 24 October 2026.** The existing Render service successfully deployed backend commit `d9778ea5bc572e4a8dbb9680a9bd57ec9aa03d2b` using Docker. [Verified deployment](https://dashboard.render.com/web/srv-dbdrqrrncjis73d9n3pg/deploys/dep-dbeetsm7bikc7387r43g). All four Prisma migrations are applied, including `20261024030000_permanent_face`.
+
+External HTTPS checks passed: `/ready` returns 200 with `face_verifier: ready`; face policy, image-submission and RFID-reader endpoints reject unauthenticated requests with 401. The enabled worker warms the detector, recognizer and landmark inference paths before startup/readiness can pass. Linux uses official MediaPipe 0.10.35; local Mac tests use 1.1.1. The compatibility pin avoids the newest Linux allocator's CPU-discovery abort in Render; EGL/GLES libraries are installed explicitly. Mandatory face gating is the server default at the owner's explicit request; no opt-out setting exists in the live database.
+
+Supabase verification found RLS enabled on all face tables and no grants to anon/authenticated/PUBLIC. The security advisor reports only 33 expected informational no-policy notices: direct browser table access intentionally stays denied ([explanation](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy)). Existing **9 users and 78 attendance records** remain unchanged. No live student was enrolled or awarded attendance by these checks. Private credentials and the public API URL are preserved; no seed/reset was run.
+
+The APK remains the same signed 1.4.0 artifact; the required-credit default and Linux compatibility fixes are server changes. Software checks do not establish a physical classroom pass.
 
 ## Physical validation still required
 

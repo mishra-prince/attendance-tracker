@@ -16,7 +16,9 @@ Face status does not strengthen the separate BLE workflow automatically. The aut
 
 ## Server rollout
 
-The existing Render service keeps its URL, database and private secrets. The versioned `render.yaml` switches its runtime to Docker, with `server` as the root directory and `./Dockerfile` / `.` as the Dockerfile/context. The image supplies Node 22 and Python 3.12, pinned vision dependencies and hash-verified public models. **Do not create a second service, reset the database or run the demo seed.** Sync/review the existing Blueprint and deploy the tested commit. The start command applies the additive Prisma migration and starts only after the face models initialize. `/ready` checks the database migration and enabled worker; it must return `face_verifier: ready`.
+**Deployment verified:** 24 October 2026, 23:19 IST. The existing API returns `face_verifier: ready`, all four migrations are applied and the owner-selected required-credit default is active. Install the published Threshold 1.4.0 update; existing accounts remain unchanged. Actual staff enrollment and physical phone/reader tests still need to be performed.
+
+The existing Render service keeps its URL, database and private secrets. The versioned `render.yaml` switches its runtime to Docker, with `server` as the root directory and `./Dockerfile` / `.` as the Dockerfile/context. The image supplies Node 22 and Python 3.12, container-compatible MediaPipe 0.10.35, pinned vision dependencies and hash-verified public models. **Do not create a second service, reset the database or run the demo seed.** Sync/review the existing Blueprint and deploy the tested commit. The start command applies the additive Prisma migration and starts only after the face models initialize. `/ready` checks the database migration and enabled worker; it must return `face_verifier: ready`.
 
 No private database URL, key or face template belongs in Git or an image build argument. Existing `DATABASE_URL`, JWT keys, BLE key and `RFID_CARD_HASH_SECRET` stay in Render. New tables deny Supabase browser roles through RLS and privilege revocation. Client apps use the Express API, not direct database access.
 
