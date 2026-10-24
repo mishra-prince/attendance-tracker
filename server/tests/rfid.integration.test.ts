@@ -53,6 +53,9 @@ beforeAll(async()=>{
   await prisma.subject.create({data:{subject_id:id.subject,subject_code:'RF101',subject_name:'RFID Class',course_id:id.course,semester_id:id.semester}});
   await prisma.subjectTeacher.create({data:{subject_id:id.subject,section_id:id.section,teacher_id:id.teacher}});
   await prisma.timetable.create({data:{timetable_id:id.slot,subject_id:id.subject,section_id:id.section,teacher_id:id.teacher,day_of_week:'Fri',start_time:'09:00',end_time:'10:00',room_no:'101'}});
+  expect((await (await import('../src/services/faceAttendance.service')).facePolicy(prisma)).required).toBe(true);
+  // Explicit opt-out fixture covers legacy RFID behavior alongside mandatory-face cases.
+  await prisma.settings.create({data:{key:'face_required_for_rfid',value:'false',updated_by:id.admin}});
   const app=(await import('../src/app')).default;server=app.listen(0,'127.0.0.1');await new Promise<void>((r)=>server.once('listening',r));base='http://127.0.0.1:'+(server.address() as any).port;
   vi.useFakeTimers({toFake:['Date']});vi.setSystemTime(new Date('2026-10-23T04:00:00Z'));
   await login('admin','admin@test.invalid');await login('teacher','teacher@test.invalid');await login('other','other@test.invalid');await login('hod','hod@test.invalid');

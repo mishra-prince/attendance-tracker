@@ -8,7 +8,7 @@
 - Server YuNet/SFace identity matching plus MediaPipe action evaluation; two distinct random actions, neutral identity checkpoints, expiring single-use challenges, login/student/class/version binding and exact-clip replay detection.
 - AES-256-GCM references bound to student/model/version, staff consent/ID record, HOD/admin recovery/revocation and deletion on student deactivation. No raw photos persisted.
 - Visible native camera preparation and Start button; automatic bounded RAM-only capture. No background camera. Student entry/random class checks, teacher status, optional combined RFID credit and existing staff correction path.
-- One bounded upload/inference job, pre-JSON admission, bounded retry and no unbounded biometric queue. Mandatory credit defaults off pending physical calibration.
+- One bounded upload/inference job, pre-JSON admission, bounded retry and no unbounded biometric queue. New RFID entries require both face checks before automatic credit, as explicitly selected by the owner. Physical calibration remains pending.
 
 ## Passed software checks
 

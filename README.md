@@ -6,7 +6,7 @@ A college attendance app for Android and the web. Supports classroom RFID reader
 
 [Download Threshold 1.4.0 APK](https://github.com/mishra-prince/attendance-tracker/raw/refs/heads/master/downloads/threshold-1.4.0-test.apk) · [Enrollment and rollout guide](docs/PERMANENT-FACE-SETUP.md) · [Build / deployment record](downloads/FACE-1.4.0-BUILD-REPORT.md)
 
-The original app now captures an approved institutional face, recomputes face matching and two random actions on the server, and shows entry/random face status alongside RFID visits. Templates are encrypted; demo identities never become approved student references. Mandatory face checks default off until enrollment and phone calibration are complete. The guide records server rollout requirements and remaining physical checks. The matching/action flow provides basic active liveness, not validated spoof resistance.
+The original app now captures an approved institutional face, recomputes face matching and two random actions on the server, and shows entry/random face status alongside RFID visits. Templates are encrypted; demo identities never become approved student references. At the owner’s request, new RFID entries require both face checks before automatic credit. Staff enrollment and phone calibration are required before student use. The guide records server rollout requirements and remaining physical checks. The matching/action flow provides basic active liveness, not validated spoof resistance.
 
 ## Threshold 1.3.1 — main RFID attendance
 

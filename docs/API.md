@@ -177,7 +177,7 @@ Authenticated Express API only; Supabase browser roles have no direct table acce
 | `POST /face/verify/challenge` | Student self; sessionId. Requires approved reference, active subject/section and an open authenticated RFID visit during class. Server chooses JOIN/SPOT and random actions. |
 | `POST /face/challenges/:id/complete` | Same login/session/actor as issuance. Body only `{frames:[{atMs,jpeg}]}`; 8–32 bounded JPEGs, at most 4M base64 characters. Server computes identity/actions. 422 means retry/review; 503 can retry the same clip within expiry; 409 means used/expired/changed state. A success is idempotent for its exact previously accepted clip. |
 | `GET /face/status/:sessionId` | Student self; approved-reference status, entry/random check status, due phase, deadline state. No templates or future random time returned. |
-| `GET/PUT /face/policy` | Admin/super admin. required, match, continuity. Defaults required=false; snapshot at new RFID entry. |
+| `GET/PUT /face/policy` | Admin/super admin. required, match, continuity. Defaults required=true at the owner’s request; snapshot at new RFID entry. |
 | `GET /enrollment/biometric/:studentId` | Self or scoped staff; metadata/hasFace only, never template. |
 | `PUT /enrollment/biometric/:studentId/revoke` | Scoped HOD/admin; atomically deletes template, changes version/trust and cancels pending checks. |
 

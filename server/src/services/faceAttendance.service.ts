@@ -4,7 +4,7 @@ import { sessionBounds } from './bleEvidence.service';
 import { httpError } from '../middleware/error.middleware';
 
 type Tx = Prisma.TransactionClient;
-export const FACE_DEFAULTS = { face_required_for_rfid: 'false', face_match_threshold: '0.55', face_continuity_threshold: '0.70' };
+export const FACE_DEFAULTS = { face_required_for_rfid: 'true', face_match_threshold: '0.55', face_continuity_threshold: '0.70' };
 export async function facePolicy(tx: Tx) {
   const rows = await tx.settings.findMany({ where: { key: { in: Object.keys(FACE_DEFAULTS) } } });
   const p = { ...FACE_DEFAULTS, ...Object.fromEntries(rows.map((r) => [r.key, r.value])) };
