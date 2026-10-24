@@ -6,6 +6,8 @@ SFace computes a normalized 128-dimensional identity representation. YuNet detec
 
 Models download during image build with mandatory SHA-256 checks. They are not duplicated in Git. `download_models.py` records exact official sources and hashes. A changed `latest` MediaPipe asset deliberately fails its checksum until reviewed. OpenCV Zoo source revision: `48b10fa505aeb51fbd127fc60a5c660040e823b7`; existing SFace Apache-2.0 and YuNet MIT notices are in `client/android/prototype/src/main/assets/licenses`. See the upstream model documentation for redistribution terms of each asset.
 
+MediaPipe is pinned to 0.10.35 on Linux and 1.1.1 for local non-Linux development. The 1.1.1 Linux wheel aborts in Render's build sandbox while TCMalloc reads the possible-CPU list; 0.10.35 does not contain that allocator assertion. Conversely, the older Mac wheel requests a graphics context even for CPU work, so local Mac checks use 1.1.1. EGL/GLES runtime libraries remain explicit Linux image dependencies. The build initializes all models and the running API warms their inference paths before becoming ready. This does not weaken action or identity requirements.
+
 References:
 
 - [OpenCV SFace/YuNet tutorial](https://docs.opencv.org/4.5.5/d0/dd4/tutorial_dnn_face.html)

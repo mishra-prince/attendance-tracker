@@ -33,10 +33,18 @@ class Vision:
         self.detector = cv2.FaceDetectorYN.create(str(directory/'face_detection_yunet_2023mar.onnx'), '', (480, 640), .9, .3, 5000)
         self.recognizer = cv2.FaceRecognizerSF.create(str(directory/'face_recognition_sface_2021dec.onnx'), '')
         self.landmarker = mp.tasks.vision.FaceLandmarker.create_from_options(mp.tasks.vision.FaceLandmarkerOptions(
-            base_options=mp.tasks.BaseOptions(model_asset_path=str(directory/'face_landmarker.task')),
+            base_options=mp.tasks.BaseOptions(model_asset_path=str(directory/'face_landmarker.task'), delegate=mp.tasks.BaseOptions.Delegate.CPU),
             running_mode=mp.tasks.vision.RunningMode.IMAGE, num_faces=2,
             min_face_detection_confidence=.7, min_face_presence_confidence=.7,
             output_face_blendshapes=True, output_facial_transformation_matrixes=True))
+        # Warm all inference paths before health passes. No student data or network is involved.
+        blank = np.zeros((480, 640, 3), dtype=np.uint8)
+        self.detector.setInputSize((640, 480))
+        self.detector.detect(blank)
+        warm = self.recognizer.feature(np.zeros((112, 112, 3), dtype=np.uint8)).reshape(-1)
+        if warm.shape != (128,) or not np.isfinite(warm).all():
+            raise RuntimeError('MODEL_WARMUP_FAILED')
+        self.landmarker.detect(mp.Image(image_format=mp.ImageFormat.SRGB, data=blank))
 
     def observe(self, item):
         raw = base64.b64decode(item['jpeg'], validate=True)
